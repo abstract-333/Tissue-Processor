@@ -1,21 +1,13 @@
-The MIT License (MIT)
+# Tissue Processor 
+An Arduino-based C++ implementation for a 12-phase medical tissue processor. This system automates the movement and timing of biological samples through 12 distinct reagent containers (phases) using a robust **Finite State Machine (FSM)**.
 
-Copyright (c) 2026 Bashar Hasan.
+## Overview:
+This project provides a reliable control logic for histology equipment. By utilizing an FSM, the system ensures that transitions between fixation, dehydration, clearing, and paraffin infiltration are handled sequentially and safely, even in the event of power interruptions or manual overrides.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## Requirements:
+- [FiniteState](https://github.com/MicroBeaut/Finite-State)
+- [Wire](https://github.com/arduino/ArduinoCore-avr/blob/master/libraries/Wire/src/Wire.h)
+- [LiquidCrystal_I2C](https://gitlab.com/tandembyte/LCD_I2C)
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+> **Disclaimer:** This codebase is intended for research and prototyping. Verify all safety timings and thermal cutoffs before use with biological samples.

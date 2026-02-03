@@ -1,0 +1,23 @@
+name: Arduino Compile
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile Sketch
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: "arduino:avr:uno" 
+          platforms: |
+            - name: "arduino:avr"
+          libraries: |
+            - name: "LiquidCrystal I2C"
+            - name: "FiniteState" 
+          sketch-paths: |
+            - ./TissueProcessor.ino

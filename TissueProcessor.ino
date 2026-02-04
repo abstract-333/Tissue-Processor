@@ -160,21 +160,24 @@ void moveOff()
 // Display helper
 void lcdShowStatus(const char *line1, const char *line2)
 {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(line1);
-  lcd.setCursor(0, 1);
-  lcd.print(line2);
+  char buffer[17]; // 16 chars + null terminator
 
-  // Debugging
+  lcd.setCursor(0, 0);
+  sprintf(buffer, "%-16s", line1); // %-16s means "left-justify and pad to 16"
+  lcd.print(buffer);
+
+  lcd.setCursor(0, 1);
+  sprintf(buffer, "%-16s", line2);
+  lcd.print(buffer);
+
   DBGLN(line1);
   DBGLN(line2);
 }
-
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
   unsigned int mins = dwellMinutes[tank];
+  static unsigned int lastMins = 999; // Tracks the last printed value
 
   // 1. Safety fallback
   if (mins == 0)
@@ -202,18 +205,26 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
 
-  // 5. Debug Printing
-  DBG("Remaining Time: 0");
-  DBG(hours);
-  DBG(":");
-  if (displayMins < 10)
-    DBG("0"); // Leading zero for minutes
-  DBGLN(displayMins);
+  if (remainingTotalMins != lastMins)
+  {
+    char buffer[17];
+    snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
 
-  char buffer[17];
-  // %d is a placeholder for integers. %02d means "print 2 digits, pad with 0"
-  snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
-  lcdShowStatus("Remaining Time:", buffer);
+    // Instead of lcd.clear(), we overwrite
+    lcd.setCursor(0, 1);
+    lcd.print(buffer);
+    lcd.print("     "); // "Clears" trailing old characters with spaces
+
+    lastMins = remainingTotalMins;
+    lcdShowStatus("Remaining Time:", buffer);
+    // 5. Debug Printing
+    DBG("Remaining Time: 0");
+    DBG(hours);
+    DBG(":");
+    if (displayMins < 10)
+      DBG("0"); // Leading zero for minutes
+    DBGLN(displayMins);
+  }
 }
 
 /**

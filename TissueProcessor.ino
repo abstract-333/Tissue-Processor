@@ -1,8 +1,8 @@
-#define DEBUG_SERIAL // Uncomment to enable Serial output for debugging
-#define TEST_MODE    // Uncomment to enable fast timers for testing
+#define DEBUG // Uncomment to enable Serial output for debugging
+#define TEST  // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
-#ifdef DEBUG_SERIAL
+#ifdef DEBUG
 #define DBG(x) Serial.print(x)
 #define DBGLN(x) Serial.println(x)
 #else
@@ -71,7 +71,7 @@ const uint8_t START_BUTTON = 2; // D2
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
-#ifdef TEST_MODE
+#ifdef TEST
 const unsigned long ONE_MIN_MS = 1000UL; // 1 second = 1 "minute" for testing
 const unsigned long MIN_DWELL_MIN = 1UL; // allow 1 "minute" in test
 #else
@@ -91,7 +91,7 @@ const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL;     // Idle state - 2 
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
 
 // Per-tank dwell times in minutes (index 1..12)
-#ifdef TEST_MODE
+#ifdef TEST
 unsigned int dwellMinutes[13] = {
     0,                         // 0 unused
     1, 1, 1, 1, 1, 1, 1, 1, 1, // containers 1..9
@@ -772,7 +772,7 @@ void setupPins()
 
 void setup()
 {
-#ifdef DEBUG_SERIAL
+#ifdef DEBUG
   Serial.begin(115200);
   while (!Serial)
     ;

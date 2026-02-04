@@ -87,9 +87,6 @@ const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;           // 1 second - moto
 const unsigned long CONTAINER_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL;     // Idle state - 2 seconds
 
-// Relay settle for AC motor (ms)
-const unsigned long RELAY_SETTLE_MS = 20UL; // 15-30 ms recommended
-
 // Constants derived from dwellMinutes
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
 

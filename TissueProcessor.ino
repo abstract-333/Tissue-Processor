@@ -14,12 +14,11 @@
   Wax Bath / Tissue Processor Controller
   - Implements the sequential logic described by the user.
   - Uses the MicroBeaut Finite-State library for structured state transitions.
-  - All comments in English.
 
-  Pin mapping (as requested):
+  Pin mapping:
     Power outputs: D9..D12
-      D12 -> vibration motor (VIB_PIN)
       D11 -> movement motor (MOVE_PIN)
+      D12 -> vibration motor (VIB_PIN)
       D10 -> heater 1 (HEATER1_PIN)
       D9  -> heater 2 (HEATER2_PIN)
 
@@ -40,13 +39,13 @@
     - Fail-safe: Any sensor reading LOW unexpectedly stops motion and sets ERROR state.
 
   Libraries required:
-    - Finite-State (https://github.com/MicroBeaut/Finite-State) added locally...
+    - Finite-State 1.6.0 (https://github.com/MicroBeaut/Finite-State) added locally...
     - LiquidCrystal_I2C (for I2C LCD, typical address 0x27)
 */
 
-#include <FiniteState.h>
+#include <FiniteState.h> // 1.6.0
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h> // 1.1.2
 
 // ========================= PIN MAP (as provided) =========================
 // Power outputs
@@ -307,17 +306,17 @@ Transition transitions[] = {
     {loweringPredicate, S_LOWERING, S_DOWN, loweringProcess, loweringActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-                    Conatiner 10 -> Start first heater.
-                    Container 11 -> Start second heater.
-                    Container 12 -> If finished then stop vibrating.
-          */
+                              Conatiner 10 -> Start first heater.
+                              Container 11 -> Start second heater.
+                              Container 12 -> If finished then stop vibrating.
+                    */
     {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, CONTAINER_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-                    Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-                    Conatiner 10 -> Renter if first wax sensor is not ready.
-                    Conatiner 11 -> Renter if first wax sensor is not ready.
-          */
+                              Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+                              Conatiner 10 -> Renter if first wax sensor is not ready.
+                              Conatiner 11 -> Renter if first wax sensor is not ready.
+                    */
     {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
@@ -460,7 +459,6 @@ void loweringActionChanged(EventArgs e)
 
   case EXIT:
     DBGLN("Exit Lowering");
-    lcdShowStatus("Reached bottom", "");
     break;
   }
 }
@@ -609,7 +607,6 @@ void upActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
-    lcdShowStatus("Top Reached", "Top State");
     DBGLN("UP state");
     break;
 

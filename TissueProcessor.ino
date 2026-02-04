@@ -728,10 +728,10 @@ void setupPins()
   digitalWrite(HEATER2_PIN, LOW);
 
   // sensor inputs - active LOW; do not enable pullups to match fail-safe behavior described
-  pinMode(SENSOR_WAX2, INPUT);
-  pinMode(SENSOR_WAX1, INPUT);
-  pinMode(SENSOR_BOTTOM, INPUT);
-  pinMode(SENSOR_TOP, INPUT);
+  pinMode(SENSOR_WAX2, INPUT_PULLUP);
+  pinMode(SENSOR_WAX1, INPUT_PULLUP);
+  pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
+  pinMode(SENSOR_TOP, INPUT_PULLUP);
 
   pinMode(START_BUTTON, INPUT_PULLUP); // use internal pullup and interpret LOW as pressed
 

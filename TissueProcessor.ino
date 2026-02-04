@@ -662,46 +662,5 @@ void loop()
   // Execute FSM regularly
   fsm.execute();
 
-  // Monitor start button behavior for pause/advance logic (smart button)
-  bool curr = digitalRead(START_BUTTON);
-
-  if (curr == HIGH)
-  {
-    if (pressedAt == 0)
-      pressedAt = millis();
-  }
-  else
-  {
-    pressedAt = 0;
-  }
-
-  if (curr == HIGH && millis() - pressedAt > FAULT_RESET_HOLD_MS)
-  {
-    DBGLN("Run button pressed");
-    if (sensorActive(SENSOR_BOTTOM))
-    {
-      if (fsm.id != S_PAUSED)
-      {
-        fsm.begin(S_PAUSED);
-      }
-      else if (sensorActive(SENSOR_TOP))
-      {
-        fsm.begin(S_TRANSITIONING);
-      }
-    }
-    else
-    {
-      fsm.begin(S_TRANSITIONING);
-    }
-  }
-  lastButton = curr;
-
-  // Small watchdog: if FSM in error state, require manual reset via long press of start button
-  if (fsm.id == S_ERROR && millis() - pressedAt > FAULT_RESET_HOLD_MS)
-  {
-    pressedAt = 0;
-    fsm.begin(S_IDLE);
-  }
-
   delay(10);
 }

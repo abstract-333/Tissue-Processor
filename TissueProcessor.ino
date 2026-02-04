@@ -205,7 +205,7 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int displayMins = remainingTotalMins % 60;
   static unsigned long lastUpdate = 0;
 
-  if (millis() - lastUpdate < 1000)
+  if (millis() - lastUpdate < ONE_MIN_MS)
     return; // Only update once per second
 
   lastUpdate = millis();
@@ -744,7 +744,7 @@ void setupPins()
   pinMode(HEATER2_PIN, OUTPUT);
   digitalWrite(HEATER2_PIN, LOW);
 
-  // sensor inputs - active LOW; do not enable pullups to match fail-safe behavior described
+  // sensor inputs - active LOW
   pinMode(SENSOR_WAX2, INPUT_PULLUP);
   pinMode(SENSOR_WAX1, INPUT_PULLUP);
   pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
@@ -753,7 +753,7 @@ void setupPins()
   pinMode(START_BUTTON, INPUT_PULLUP); // use internal pullup and interpret LOW as pressed
 
   for (uint8_t i = 0; i < 4; ++i)
-    pinMode(PIN_ID_BITS[i], INPUT_PULLUP);
+    pinMode(PIN_ID_BITS[i], INPUT);
 }
 
 void setup()

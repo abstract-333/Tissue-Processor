@@ -1,5 +1,5 @@
-#define DEBUG // Uncomment to enable Serial output for debugging
-#define TEST  // Uncomment to enable fast timers for testing
+// #define DEBUG  // Uncomment to enable Serial output for debugging
+#define TEST // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -71,17 +71,18 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL; // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 1UL; // allow 1 "minute" in test
+const unsigned long ONE_MIN_MS = 1000UL;               // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 1UL;               // allow 1 "minute" in test
+const unsigned long CONTAINER_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL; // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;       // production min dwell in minutes
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;               // 1 real minute
+const unsigned long MIN_DWELL_MIN = 60UL;                     // production min dwell in minutes
+const unsigned long CONTAINER_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 #endif
 
-const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;          // 30 seconds - motion safety timeout
-const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;           // 1 second - motor swithc saf
-const unsigned long CONTAINER_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
-const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL;     // Idle state - 2 seconds
+const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;      // 30 seconds - motion safety timeout
+const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;       // 1 second - motor swithc saf
+const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seconds
 
 // Constants derived from dwellMinutes
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
@@ -135,7 +136,6 @@ uint8_t readTankSelector()
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
 bool sensorActive(uint8_t pin)
 {
-  // We intentionally DO NOT enable INPUT_PULLUP here for external wiring; a broken wire should report LOW in the user's spec.
   return digitalRead(pin) == LOW;
 }
 
@@ -177,7 +177,6 @@ void lcdShowStatus(const char *line1, const char *line2)
 void printRemainingTimeForTank(uint8_t tank)
 {
   unsigned int mins = dwellMinutes[tank];
-  static unsigned int lastMins = 999; // Tracks the last printed value
 
   // 1. Safety fallback
   if (mins == 0)
@@ -204,27 +203,28 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int remainingTotalMins = remainingMs / 60000;
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
+  static unsigned long lastUpdate = 0;
 
-  if (remainingTotalMins != lastMins)
-  {
-    char buffer[17];
-    snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
+  if (millis() - lastUpdate < 1000)
+    return; // Only update once per second
 
-    // Instead of lcd.clear(), we overwrite
-    lcd.setCursor(0, 1);
-    lcd.print(buffer);
-    lcd.print("     "); // "Clears" trailing old characters with spaces
+  lastUpdate = millis();
+  char buffer[17];
+  snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
 
-    lastMins = remainingTotalMins;
-    lcdShowStatus("Remaining Time:", buffer);
-    // 5. Debug Printing
-    DBG("Remaining Time: 0");
-    DBG(hours);
-    DBG(":");
-    if (displayMins < 10)
-      DBG("0"); // Leading zero for minutes
-    DBGLN(displayMins);
-  }
+  // Instead of lcd.clear(), we overwrite
+  lcd.setCursor(0, 1);
+  lcd.print(buffer);
+  lcd.print("     "); // "Clears" trailing old characters with spaces
+
+  lcdShowStatus("Remaining Time:", buffer);
+  // 5. Debug Printing
+  DBG("Remaining Time: 0");
+  DBG(hours);
+  DBG(":");
+  if (displayMins < 10)
+    DBG("0"); // Leading zero for minutes
+  DBGLN(displayMins);
 }
 
 /**
@@ -317,17 +317,17 @@ Transition transitions[] = {
     {loweringPredicate, S_LOWERING, S_DOWN, loweringProcess, loweringActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-                              Conatiner 10 -> Start first heater.
-                              Container 11 -> Start second heater.
-                              Container 12 -> If finished then stop vibrating.
-                    */
+                                  Conatiner 10 -> Start first heater.
+                                  Container 11 -> Start second heater.
+                                  Container 12 -> If finished then stop vibrating.
+                        */
     {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, CONTAINER_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-                              Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-                              Conatiner 10 -> Renter if first wax sensor is not ready.
-                              Conatiner 11 -> Renter if first wax sensor is not ready.
-                    */
+                                  Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+                                  Conatiner 10 -> Renter if first wax sensor is not ready.
+                                  Conatiner 11 -> Renter if first wax sensor is not ready.
+                        */
     {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
@@ -726,7 +726,13 @@ void transitiningActionChanged(EventArgs e)
 }
 
 // Setup and loop
-
+void handleSensorsFailure()
+{
+  bool topSensor = !sensorActive(SENSOR_TOP);
+  bool bottomSensor = sensorActive(SENSOR_BOTTOM);
+  bool heatSensor_1 = sensorActive(SENSOR_WAX1);
+  bool heatSensor_2 = sensorActive(SENSOR_WAX2);
+}
 void setupPins()
 {
   pinMode(VIB_PIN, OUTPUT);
@@ -759,6 +765,7 @@ void setup()
 #endif
   setupPins();
   // TODO: Handle sensors error
+  handleSensorsFailure();
   Wire.begin();
   lcd.init();
   lcd.backlight();
@@ -768,7 +775,7 @@ void setup()
 }
 
 void loop()
-{ // TODO: Handle LCD Flicker
+{
   // Execute FSM regularly
   fsm.execute();
   delay(10);

@@ -93,7 +93,7 @@ const unsigned long RELAY_SETTLE_MS = 20UL; // 15-30 ms recommended
 // Constants derived from dwellMinutes
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
 
-// Per-container dwell times in minutes (index 1..12)
+// Per-tank dwell times in minutes (index 1..12)
 #ifdef TEST_MODE
 unsigned int dwellMinutes[13] = {
     0,                         // 0 unused
@@ -113,19 +113,15 @@ unsigned int dwellMinutes[13] = {
 #endif
 
 // Program variables
-volatile bool startButtonPressed = false; // updated in ISR (debounced in FSM logic)
-
-uint8_t currentTank = 1;            // 1..12
+uint8_t tank = 1;
 unsigned long startTimeTank = 0;    // for time in tank
 unsigned long processStartTime = 0; // for per-tank timing
 unsigned long motorStartTime = 0;   // for mechanical timeout
-unsigned long lastMotorOffTime = 0; // for motor switch safety
 unsigned long pressedAt = 0;        // for press button
-bool lastButton = LOW;              // last button state
 bool finished = false;              // Cycle finished
 bool inspection = false;            // Inspection activated
-bool firstCycle11 = false;          // First cycle completed on 11th container
-bool firstCycle12 = false;          // First cycle completed on 12th container
+bool firstCycle11 = false;          // First cycle completed on 11th tank
+bool firstCycle12 = false;          // First cycle completed on 12th tank
 bool holdHandled = false;           // If we processed the button
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
@@ -361,14 +357,12 @@ bool idlePredicate(id_t d)
   }
   return false;
 }
-
 void idleProcess(id_t id)
 {
   // display waiting state
   lcdShowStatus("Status: Idle", "Press Start");
   return;
 }
-
 void idleActionChanged(EventArgs e)
 {
   switch (e.action)
@@ -410,18 +404,17 @@ bool startingPredicate(id_t id)
 
   return true;
 }
-
 void startingProcess(id_t id)
 {
   return;
 }
-
 void startingActionChanged(EventArgs e)
 {
   switch (e.action)
   {
   case ENTRY:
     uint8_t currentTank = readTankSelector();
+    tank = currentTank;
     char buf1[17];
     char buf2[17];
     snprintf(buf1, sizeof(buf1), "Tank: %u", currentTank);
@@ -439,11 +432,13 @@ void startingActionChanged(EventArgs e)
 
 void loweringProcess(id_t id)
 {
+  if (!digitalRead(MOVE_PIN))
+    moveOn();
+
   // check mechanical timeout
   if (motorStartTime == 0)
     motorStartTime = millis();
 }
-
 bool loweringPredicate(id_t id)
 {
   // if bottom sensor active -> true to move to VIBRATE
@@ -459,26 +454,27 @@ bool loweringPredicate(id_t id)
   {
     // timeout -> error
     moveOff();
+    motorStartTime = 0;
     DBGLN("Lower timeout -> ERROR");
+    lcdShowStatus("ERROR", "MOTOR OVER TIME");
     fsm.begin(S_ERROR);
     return false; // remain or exit to error as FSM sets state elsewhere
   }
-  if (!digitalRead(MOVE_PIN))
-    moveOn();
 
   return false; // continue lowering
 }
-
 void loweringActionChanged(EventArgs e)
 {
   switch (e.action)
   {
   case ENTRY:
     DBGLN("Lowering..");
+    lcdShowStatus("Lowering", "");
     break;
 
   case EXIT:
     DBGLN("Exit Lowering");
+    lcdShowStatus("Reached bottom", "");
     break;
   }
 }
@@ -489,11 +485,11 @@ bool downPredicate(id_t id)
   {
     DBGLN("Raising to top");
     lcdShowStatus("Button Pressed", "Raising...");
+    inspection = true;
     return false;
   }
   return true;
 }
-
 void downProcess(id_t id)
 {
   uint8_t conatinerId = readTankSelector();
@@ -531,7 +527,6 @@ void downProcess(id_t id)
 
   return;
 }
-
 void downActionChanged(EventArgs e)
 {
   switch (e.action)
@@ -601,20 +596,158 @@ void checkingActionChanged(EventArgs e)
   }
 }
 
-void upProcess(id_t id) {}
-bool upPredicate(id_t id) {}
-void upActionChanged(EventArgs e) {}
+void upProcess(id_t id)
+{
+  if (inspection && !digitalRead(MOVE_PIN))
+  {
+    moveOff();
+    motorStartTime = 0;
+    DBGLN("Top Position");
+    DBGLN("Press Run to continue");
+    lcdShowStatus("Top inspection", "Press Run");
+    return;
+  }
+  return;
+}
+bool upPredicate(id_t id)
+{
+  if (!inspection)
+    return true;
+  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+  {
+    inspection = false;
+    return false;
+  }
+  return false;
+}
+void upActionChanged(EventArgs e)
+{
+  switch (e.action)
+  {
+  case ENTRY:
+    lcdShowStatus("Top Reached", "Top State");
+    DBGLN("UP state");
+    break;
 
-void raisingProcess(id_t id) {}
-bool raisingPredicate(id_t id) {}
-void raisingActionChanged(EventArgs e) {}
+  case EXIT:
+    DBGLN("Exiting UP state");
+    break;
+  }
+}
 
-void transitiningProcess(id_t id) {}
-bool transitiningPredicate(id_t id) {}
-void transitiningActionChanged(EventArgs e) {}
+void raisingProcess(id_t id)
+{
+  if (!digitalRead(MOVE_PIN))
+    moveOn();
 
-void errorProcess(id_t id) {}
-void errorActionChanged(EventArgs e) {}
+  // check mechanical timeout
+  if (motorStartTime == 0)
+    motorStartTime = millis();
+}
+bool raisingPredicate(id_t id)
+{
+
+  // if top sensor active -> true to move to VIBRATE
+  if (sensorActive(SENSOR_TOP) && !sensorActive(SENSOR_BOTTOM))
+  {
+    moveOff();
+    motorStartTime = 0;
+    DBGLN("Reached Top");
+    return true;
+  }
+  // mechanical timeout
+  if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
+  {
+    // timeout -> error
+    moveOff();
+    DBGLN("Raise timeout -> ERROR");
+    lcdShowStatus("ERROR", "MOTOR OVER TIME");
+    fsm.begin(S_ERROR);
+    return false; // remain or exit to error as FSM sets state elsewhere
+  }
+
+  return false; // continue Raising
+}
+void raisingActionChanged(EventArgs e)
+{
+  switch (e.action)
+  {
+  case ENTRY:
+    DBGLN("Raising..");
+    lcdShowStatus("Raising", "");
+    break;
+
+  case EXIT:
+    DBGLN("Exit Raising state");
+    lcdShowStatus("Reached top", "");
+    break;
+  }
+}
+
+void transitiningProcess(id_t id)
+{
+  if (!digitalRead(MOVE_PIN))
+    moveOn();
+
+  // check mechanical timeout
+  if (motorStartTime == 0)
+    motorStartTime = millis();
+}
+bool transitiningPredicate(id_t id)
+{
+  if (!sensorActive(SENSOR_TOP))
+  {
+    lcdShowStatus("Critical Error", "Top sensor");
+    fsm.begin(S_ERROR); // Top sensor is not active -> Error
+  }
+  if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
+  {
+    // timeout -> error
+    moveOff();
+    motorStartTime = 0;
+    DBGLN("Lower timeout -> ERROR");
+    fsm.begin(S_ERROR);
+    return false; // remain or exit to error as FSM sets state elsewhere
+  }
+
+  uint8_t currentContainer = readTankSelector();
+  if (currentContainer != tank)
+  {
+    tank = currentContainer;
+    return true;
+  }
+  return false;
+}
+void transitiningActionChanged(EventArgs e)
+{
+  switch (e.action)
+  {
+  case ENTRY:
+    DBGLN("Entering Transition State");
+    break;
+
+  case EXIT:
+    DBGLN("Exiting Transition State");
+    break;
+  }
+}
+
+void errorProcess(id_t id)
+{
+  return;
+}
+void errorActionChanged(EventArgs e)
+{
+  switch (e.action)
+  {
+  case ENTRY:
+    DBGLN("ENTERED ERROR STATE");
+    break;
+
+  case EXIT:
+    break;
+  }
+}
 // Setup and loop
 
 void setupPins()

@@ -88,7 +88,7 @@ const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between ta
 
 // Per-tank dwell times in minutes (index 1..12)
 #ifdef TEST
-unsigned int dwellMinutes[13] = {
+const unsigned int dwellMinutes[13] = {
     0,                         // 0 unused
     1, 1, 1, 1, 1, 1, 1, 1, 1, // containers 1..9
     1,                         // 10
@@ -96,7 +96,7 @@ unsigned int dwellMinutes[13] = {
     2                          // 12
 };
 #else
-unsigned int dwellMinutes[13] = {
+const unsigned int dwellMinutes[13] = {
     0,
     60, 60, 60, 60, 60, 60, 60, 60, 60, // containers 1..9
     60,                                 // 10
@@ -212,7 +212,7 @@ void printRemainingTimeForTank(uint8_t tank)
 
   char buffer[17];
   // %d is a placeholder for integers. %02d means "print 2 digits, pad with 0"
-  sprintf(buffer, "%d:%02d", hours, displayMins);
+  snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
   lcdShowStatus("Remaining Time:", buffer);
 }
 
@@ -376,12 +376,12 @@ bool startingPredicate(id_t id)
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
 
-  if (tank == 11 && !sensorActive(HEATER1_PIN))
+  if (tank == 11 && !digitalRead(HEATER1_PIN))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     fsm.begin(S_ERROR);
   }
-  if (tank == 12 && !sensorActive(HEATER2_PIN) || !sensorActive(HEATER1_PIN))
+  if (tank == 12 && (!sensorActive(HEATER2_PIN) || !digitalRead(HEATER1_PIN)))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     DBGLN("Critical error container 12 with no sensor 2 activated");
@@ -547,9 +547,10 @@ bool checkingPredicate(id_t id)
   if (tank == 10 && !sensorActive(SENSOR_WAX1))
   {
     DBGLN("Returning to down state because wax sensor is not ");
+    lcdShowStatus("Waiting for", "Wax 1 Heat...");
     return false;
   }
-  else if (tank == 11 && !sensorActive(SENSOR_WAX2) || !firstCycle11)
+  else if (tank == 11 && (!sensorActive(SENSOR_WAX2) || !firstCycle11))
   {
     DBGLN("Moving to second hour");
     return false;
@@ -743,10 +744,10 @@ void setup()
 #ifdef DEBUG
   Serial.begin(115200);
   while (!Serial)
-    ;
-  DBGLN("Serial debug enabled");
+    DBGLN("Serial debug enabled");
 #endif
   setupPins();
+  // TODO: Handle sensors error
   Wire.begin();
   lcd.init();
   lcd.backlight();
@@ -756,7 +757,7 @@ void setup()
 }
 
 void loop()
-{
+{ // TODO: Handle LCD Flicker
   // Execute FSM regularly
   fsm.execute();
   delay(10);

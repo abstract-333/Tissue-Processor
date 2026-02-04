@@ -44,7 +44,7 @@
     - LiquidCrystal_I2C (for I2C LCD, typical address 0x27)
 */
 
-#include "FiniteState.h"
+#include <FiniteState.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -80,9 +80,6 @@ const unsigned long MIN_DWELL_MIN = 60UL;       // production min dwell in minut
 #endif
 
 const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;          // 30 seconds - motion safety timeout
-const unsigned long DEBOUNCE_MS = 40UL;                       // button debounce
-const unsigned long LCD_REFRESH_MS = 1000UL;                  // 1s LCD refresh
-const unsigned long FAULT_RESET_HOLD_MS = 5000UL;             // hold RUN 5s to clear fault
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;           // 1 second - motor swithc saf
 const unsigned long CONTAINER_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL;     // Idle state - 2 seconds
@@ -111,15 +108,14 @@ unsigned int dwellMinutes[13] = {
 
 // Program variables
 uint8_t tank = 1;
-unsigned long startTimeTank = 0;    // for time in tank
-unsigned long processStartTime = 0; // for per-tank timing
-unsigned long motorStartTime = 0;   // for mechanical timeout
-unsigned long pressedAt = 0;        // for press button
-bool finished = false;              // Cycle finished
-bool inspection = false;            // Inspection activated
-bool firstCycle11 = false;          // First cycle completed on 11th tank
-bool firstCycle12 = false;          // First cycle completed on 12th tank
-bool holdHandled = false;           // If we processed the button
+unsigned long startTimeTank = 0;  // for time in tank
+unsigned long motorStartTime = 0; // for mechanical timeout
+unsigned long pressedAt = 0;      // for press button
+bool finished = false;            // Cycle finished
+bool inspection = false;          // Inspection activated
+bool firstCycle11 = false;        // First cycle completed on 11th tank
+bool firstCycle12 = false;        // First cycle completed on 12th tank
+bool holdHandled = false;         // If we processed the button
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 uint8_t readTankSelector()
@@ -272,7 +268,6 @@ bool idlePredicate(id_t d);
 void idleProcess(id_t id);
 void idleActionChanged(EventArgs e);
 
-void startingProcess(id_t id);
 bool startingPredicate(id_t id);
 void startingActionChanged(EventArgs e);
 
@@ -300,32 +295,29 @@ void transitiningProcess(id_t id);
 bool transitiningPredicate(id_t id);
 void transitiningActionChanged(EventArgs e);
 
-void errorProcess(id_t id);
-void errorActionChanged(EventArgs e);
-
 // Transition table - keep it as readable blocks. Use predicate timers where necessary.
 Transition transitions[] = {
     // S_IDLE: wait start button. When pressed -> CHECK_START
     {idlePredicate, S_IDLE, S_STARTING, idleProcess, idleActionChanged},
 
     // S_STARTING: read tank and prepare to start.
-    {startingPredicate, S_IDLE, S_LOWERING, startingProcess, startingActionChanged},
+    {startingPredicate, S_IDLE, S_LOWERING, nullptr, startingActionChanged},
 
     // S_LOWERING: run movement motor until bottom sensor active -> if bottom sensor active -> VIBRATE else ERROR
     {loweringPredicate, S_LOWERING, S_DOWN, loweringProcess, loweringActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-              Conatiner 10 -> Start first heater.
-              Container 11 -> Start second heater.
-              Container 12 -> If finished then stop vibrating.
-    */
+                    Conatiner 10 -> Start first heater.
+                    Container 11 -> Start second heater.
+                    Container 12 -> If finished then stop vibrating.
+          */
     {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, CONTAINER_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-              Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-              Conatiner 10 -> Renter if first wax sensor is not ready.
-              Conatiner 11 -> Renter if first wax sensor is not ready.
-    */
+                    Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+                    Conatiner 10 -> Renter if first wax sensor is not ready.
+                    Conatiner 11 -> Renter if first wax sensor is not ready.
+          */
     {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
@@ -369,6 +361,7 @@ void idleActionChanged(EventArgs e)
     finished = false;
     firstCycle11 = false;
     firstCycle12 = false;
+    startTimeTank = 0;
     break;
   case EXIT:
     DBGLN("Exit idle");
@@ -384,16 +377,15 @@ bool startingPredicate(id_t id)
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
 
-  uint8_t currentTank = readTankSelector();
-
-  if (currentTank == 11 && !sensorActive(HEATER1_PIN))
+  if (tank == 11 && !sensorActive(HEATER1_PIN))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     fsm.begin(S_ERROR);
   }
-  if (currentTank == 12 && !sensorActive(HEATER2_PIN))
+  if (tank == 12 && !sensorActive(HEATER2_PIN) || !sensorActive(HEATER1_PIN))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
+    DBGLN("Critical error container 12 with no sensor 2 activated");
     fsm.begin(S_ERROR);
   }
   if (finished)
@@ -401,15 +393,13 @@ bool startingPredicate(id_t id)
 
   return true;
 }
-void startingProcess(id_t id)
-{
-  return;
-}
 void startingActionChanged(EventArgs e)
 {
   switch (e.action)
   {
   case ENTRY:
+  {
+    startTimeTank = 0;
     uint8_t currentTank = readTankSelector();
     tank = currentTank;
     char buf1[17];
@@ -420,11 +410,10 @@ void startingActionChanged(EventArgs e)
     DBG("Entering tank: ");
     DBGLN(currentTank);
     break;
-
+  }
   case EXIT:
     break;
   }
-  return;
 }
 
 void loweringProcess(id_t id)
@@ -483,14 +472,14 @@ bool downPredicate(id_t id)
     DBGLN("Raising to top");
     lcdShowStatus("Button Pressed", "Raising...");
     inspection = true;
+    startTimeTank = 0;
     return false;
   }
   return true;
 }
 void downProcess(id_t id)
 {
-  uint8_t conatinerId = readTankSelector();
-  if (conatinerId == 12 && finished)
+  if (tank == 12 && finished)
   {
     vibOff();
     lcdShowStatus("Finished", "Press Run...");
@@ -505,22 +494,19 @@ void downProcess(id_t id)
     DBGLN("Start Vibrating");
   }
 
-  if (conatinerId == 10 && !sensorActive(SENSOR_WAX1) && !digitalRead(HEATER1_PIN))
+  if (tank == 10 && !sensorActive(SENSOR_WAX1) && !digitalRead(HEATER1_PIN))
   {
     digitalWrite(HEATER1_PIN, HIGH);
     DBGLN("Start First Heater");
   }
-  else if (conatinerId == 11 && !sensorActive(SENSOR_WAX2) && !digitalRead(HEATER2_PIN))
+  else if (tank == 11 && !sensorActive(SENSOR_WAX2) && !digitalRead(HEATER2_PIN))
   {
     digitalWrite(HEATER2_PIN, HIGH);
     DBGLN("Start Second Heater");
   }
 
   // Print remaining time on lcd screen.
-  printRemainingTimeForTank(conatinerId);
-
-  if (processStartTime == 0)
-    processStartTime = millis();
+  printRemainingTimeForTank(tank);
 
   return;
 }
@@ -529,6 +515,8 @@ void downActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
+    if (startTimeTank == 0)
+      startTimeTank = millis();
     DBGLN("Enter down state");
     break;
 
@@ -540,13 +528,12 @@ void downActionChanged(EventArgs e)
 
 void checkingProcess(id_t id)
 {
-  uint8_t conatinerId = readTankSelector();
-  if (conatinerId == 11)
+  if (tank == 11)
   {
     firstCycle11 = true;
     return;
   }
-  if (conatinerId == 12)
+  if (tank == 12)
   {
     if (firstCycle12)
     {
@@ -559,22 +546,22 @@ void checkingProcess(id_t id)
 }
 bool checkingPredicate(id_t id)
 {
-  uint8_t conatinerId = readTankSelector();
-  if (conatinerId == 10 && !sensorActive(SENSOR_WAX1))
+  if (tank == 10 && !sensorActive(SENSOR_WAX1))
   {
     DBGLN("Returning to down state because wax sensor is not ");
     return false;
   }
-  else if (conatinerId == 11 && !sensorActive(SENSOR_WAX2) || !firstCycle11)
+  else if (tank == 11 && !sensorActive(SENSOR_WAX2) || !firstCycle11)
   {
     DBGLN("Moving to second hour");
     return false;
   }
-  else if (conatinerId == 12)
+  else if (tank == 12)
   {
     DBGLN("Returning to down state 12 containers");
     return false;
   }
+  startTimeTank = 0;
   return true;
 }
 void checkingActionChanged(EventArgs e)
@@ -729,22 +716,6 @@ void transitiningActionChanged(EventArgs e)
   }
 }
 
-void errorProcess(id_t id)
-{
-  return;
-}
-void errorActionChanged(EventArgs e)
-{
-  switch (e.action)
-  {
-  case ENTRY:
-    DBGLN("ENTERED ERROR STATE");
-    break;
-
-  case EXIT:
-    break;
-  }
-}
 // Setup and loop
 
 void setupPins()
@@ -791,6 +762,5 @@ void loop()
 {
   // Execute FSM regularly
   fsm.execute();
-
   delay(10);
 }

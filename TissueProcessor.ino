@@ -71,13 +71,13 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL;               // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 1UL;               // allow 1 "minute" in test
-const unsigned long CONTAINER_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
+const unsigned long ONE_MIN_MS = 1000UL;          // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 1UL;          // allow 1 "minute" in test
+const unsigned long TANK_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL;               // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;                     // production min dwell in minutes
-const unsigned long CONTAINER_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
+const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
+const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 #endif
 
 const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;      // 30 seconds - motion safety timeout
@@ -321,7 +321,7 @@ Transition transitions[] = {
                                   Container 11 -> Start second heater.
                                   Container 12 -> If finished then stop vibrating.
                         */
-    {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, CONTAINER_TIME_MS, TRUE_TIMER},
+    {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
                                   Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.

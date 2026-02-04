@@ -40,11 +40,11 @@
     - Fail-safe: Any sensor reading LOW unexpectedly stops motion and sets ERROR state.
 
   Libraries required:
-    - Finite-State (https://github.com/MicroBeaut/Finite-State)
+    - Finite-State (https://github.com/MicroBeaut/Finite-State) added locally...
     - LiquidCrystal_I2C (for I2C LCD, typical address 0x27)
 */
 
-#include <FiniteState.h>
+#include "FiniteState.h"
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 

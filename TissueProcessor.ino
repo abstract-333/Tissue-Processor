@@ -83,6 +83,7 @@ const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down f
 const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;      // 30 seconds - motion safety timeout
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;       // 1 second - motor swithc saf
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seconds
+const unsigned long DEBOUNCE_DELAY_MS = 50;               // debounce time for sensors = 50 ms
 
 // Constants derived from dwellMinutes
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
@@ -138,6 +139,36 @@ bool sensorActive(uint8_t pin)
 {
   return digitalRead(pin) == LOW;
 }
+
+// Define a simple structure to track sensor state
+struct DebouncedSensor
+{
+  uint8_t pin;
+  unsigned long lastLowTime;
+
+  // A "Method" to check the sensor
+  bool isActive()
+  {
+    if (sensorActive(pin))
+    {
+      if (lastLowTime == 0)
+        lastLowTime = millis();
+      if (millis() - lastLowTime >= DEBOUNCE_DELAY_MS)
+        return true; // 50ms stable LOW
+    }
+    else
+    {
+      lastLowTime = 0; // Reset if signal flickers HIGH
+    }
+    return false;
+  }
+};
+
+// Initialize your specific sensors
+DebouncedSensor topLimit = {SENSOR_TOP, 0};
+DebouncedSensor bottomLimit = {SENSOR_BOTTOM, 0};
+DebouncedSensor wax1Ready = {SENSOR_WAX1, 0};
+DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 
 // Motor control helpers
 void vibOn()
@@ -381,18 +412,18 @@ void idleActionChanged(EventArgs e)
 
 bool startingPredicate(id_t id)
 {
-  if (!sensorActive(SENSOR_TOP))
+  if (!topLimit.isActive())
   {
     lcdShowStatus("Critical Error", "Top sensor");
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
 
-  if (tank == 11 && !digitalRead(HEATER1_PIN))
+  if (tank == 11 && !wax1Ready.isActive())
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     fsm.begin(S_ERROR);
   }
-  if (tank == 12 && (!sensorActive(HEATER2_PIN) || !digitalRead(HEATER1_PIN)))
+  if (tank == 12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     DBGLN("Critical error container 12 with no sensor 2 activated");
@@ -438,7 +469,7 @@ void loweringProcess(id_t id)
 bool loweringPredicate(id_t id)
 {
   // if bottom sensor active -> true to move to VIBRATE
-  if (sensorActive(SENSOR_BOTTOM) && !sensorActive(SENSOR_TOP))
+  if (bottomLimit.isActive() && !topLimit.isActive())
   {
     moveOff();
     motorStartTime = 0;
@@ -503,12 +534,12 @@ void downProcess(id_t id)
     DBGLN("Start Vibrating");
   }
 
-  if (tank == 10 && !sensorActive(SENSOR_WAX1) && !digitalRead(HEATER1_PIN))
+  if (tank == 10 && !wax1Ready.isActive() && !digitalRead(HEATER1_PIN))
   {
     digitalWrite(HEATER1_PIN, HIGH);
     DBGLN("Start First Heater");
   }
-  else if (tank == 11 && !sensorActive(SENSOR_WAX2) && !digitalRead(HEATER2_PIN))
+  else if (tank == 11 && !wax1Ready.isActive() && !digitalRead(HEATER2_PIN))
   {
     digitalWrite(HEATER2_PIN, HIGH);
     DBGLN("Start Second Heater");
@@ -555,13 +586,13 @@ void checkingProcess(id_t id)
 }
 bool checkingPredicate(id_t id)
 {
-  if (tank == 10 && !sensorActive(SENSOR_WAX1))
+  if (tank == 10 && !wax1Ready.isActive())
   {
     DBGLN("Returning to down state because wax sensor is not ");
     lcdShowStatus("Waiting for", "Wax 1 Heat...");
     return false;
   }
-  else if (tank == 11 && (!sensorActive(SENSOR_WAX2) || !firstCycle11))
+  else if (tank == 11 && (!wax2Ready.isActive() || !firstCycle11))
   {
     DBGLN("Moving to second hour");
     return false;
@@ -641,7 +672,7 @@ bool raisingPredicate(id_t id)
 {
 
   // if top sensor active -> true to move to VIBRATE
-  if (sensorActive(SENSOR_TOP) && !sensorActive(SENSOR_BOTTOM))
+  if (topLimit.isActive() && !bottomLimit.isActive())
   {
     moveOff();
     motorStartTime = 0;
@@ -688,7 +719,7 @@ void transitiningProcess(id_t id)
 }
 bool transitiningPredicate(id_t id)
 {
-  if (!sensorActive(SENSOR_TOP))
+  if (!topLimit.isActive())
   {
     lcdShowStatus("Critical Error", "Top sensor");
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
@@ -728,10 +759,10 @@ void transitiningActionChanged(EventArgs e)
 // Setup and loop
 void handleSensorsFailure()
 {
-  bool topSensor = !sensorActive(SENSOR_TOP);
-  bool bottomSensor = sensorActive(SENSOR_BOTTOM);
-  bool heatSensor_1 = sensorActive(SENSOR_WAX1);
-  bool heatSensor_2 = sensorActive(SENSOR_WAX2);
+  bool topSensor = !topLimit.isActive();
+  bool bottomSensor = bottomLimit.isActive();
+  bool heatSensor_1 = wax1Ready.isActive();
+  bool heatSensor_2 = wax2Ready.isActive();
 }
 void setupPins()
 {

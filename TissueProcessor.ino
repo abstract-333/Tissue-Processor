@@ -128,31 +128,22 @@ bool holdHandled = false;                           // If we processed the butto
 
 uint8_t readTankSelector()
 {
-  // 1. Read the raw value from pins
-  uint8_t currentRaw = 0;
+  uint8_t raw = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
-    currentRaw |= (digitalRead(PIN_ID_BITS[i]) == HIGH) << i;
+    uint8_t v = (digitalRead(PIN_ID_BITS[i]) == HIGH) ? 1 : 0;
+    raw |= (v << i);
   }
-  uint8_t currentRead = currentRaw + 1;
-
-  // Constrain to valid tanks
+  uint8_t currentRead = raw + 1;
   if (currentRead > 12)
     currentRead = 12;
-
-  // 2. Stability Check (Debounce logic)
   if (currentRead != pendingTank)
   {
     pendingTank = currentRead;
     tankStabilityTime = millis();
   }
-
   if ((millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
-  {
-    // The value has been the same for 200ms
     lastStableTank = pendingTank;
-  }
-
   return lastStableTank;
 }
 
@@ -253,7 +244,7 @@ void printRemainingTimeForTank(uint8_t tank)
     remainingMs = 0;
 
   // 4. Convert to Hours and Minutes
-  unsigned int remainingTotalMins = remainingMs / 60000;
+  unsigned long remainingTotalMins = remainingMs / ONE_MIN_MS;
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
   static unsigned long lastUpdate = 0;
@@ -283,32 +274,50 @@ void printRemainingTimeForTank(uint8_t tank)
 /**
  * Returns true only after the button has been held for 'duration'
  */
-bool buttonHeld(uint8_t button, uint32_t duration)
+bool buttonHeld(uint8_t buttonPin, uint32_t duration)
 {
-  uint8_t state = sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
+  const uint8_t MAX_SLOTS = 8;
+  static uint8_t pins[MAX_SLOTS] = {0};
+  static unsigned long pressedAt[MAX_SLOTS] = {0};
+  static bool handled[MAX_SLOTS] = {0};
 
-  if (state)
+  int idx = -1;
+  for (int i = 0; i < MAX_SLOTS; ++i)
   {
-    if (pressedAt == 0)
+    if (pins[i] == buttonPin)
     {
-      // Just started pressing
-      pressedAt = millis();
-      holdHandled = false;
+      idx = i;
+      break;
     }
-    else if (!holdHandled && (millis() - pressedAt >= duration))
+    if (pins[i] == 0)
     {
-      // Threshold reached!
-      holdHandled = true;
+      pins[i] = buttonPin;
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0)
+    return false;
+
+  bool pressed = sensorActive(buttonPin);
+  if (pressed)
+  {
+    if (pressedAt[idx] == 0)
+    {
+      pressedAt[idx] = millis();
+      handled[idx] = false;
+    }
+    else if (!handled[idx] && millis() - pressedAt[idx] >= duration)
+    {
+      handled[idx] = true;
       return true;
     }
   }
   else
   {
-    // Button released - reset everything
-    pressedAt = 0;
-    holdHandled = false;
+    pressedAt[idx] = 0;
+    handled[idx] = false;
   }
-
   return false;
 }
 

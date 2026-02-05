@@ -45,6 +45,7 @@
 
 #include <FiniteState.h> // 1.6.0
 #include <Wire.h>
+#include <avr/wdt.h>
 #include <LiquidCrystal_I2C.h> // 1.1.2
 
 // ========================= PIN MAP (as provided) =========================
@@ -112,26 +113,47 @@ uint8_t tank = 1;
 unsigned long startTimeTank = 0;  // for time in tank
 unsigned long motorStartTime = 0; // for mechanical timeout
 unsigned long pressedAt = 0;      // for press button
-bool finished = false;            // Cycle finished
-bool inspection = false;          // Inspection activated
-bool firstCycle11 = false;        // First cycle completed on 11th tank
-bool firstCycle12 = false;        // First cycle completed on 12th tank
-bool holdHandled = false;         // If we processed the button
+uint8_t lastStableTank = 1;
+uint8_t pendingTank = 1;
+unsigned long tankStabilityTime = 0;
+const unsigned long TANK_STABILITY_THRESHOLD = 200; // ms
+bool finished = false;                              // Cycle finished
+bool inspection = false;                            // Inspection activated
+bool firstCycle11 = false;                          // First cycle completed on 11th tank
+bool firstCycle12 = false;                          // First cycle completed on 12th tank
+bool holdHandled = false;                           // If we processed the button
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
+// Add these variables to your global program variables
+
 uint8_t readTankSelector()
 {
-  uint8_t val = 0;
+  // 1. Read the raw value from pins
+  uint8_t currentRaw = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
-    val |= (digitalRead(PIN_ID_BITS[i]) == HIGH) << i;
+    currentRaw |= (digitalRead(PIN_ID_BITS[i]) == HIGH) << i;
   }
-  uint8_t tank = val + 1;
-  if (tank < 1)
-    tank = 1;
-  if (tank > 12)
-    tank = 12;
-  return tank;
+  uint8_t currentRead = currentRaw + 1;
+
+  // Constrain to valid tanks
+  if (currentRead > 12)
+    currentRead = 12;
+
+  // 2. Stability Check (Debounce logic)
+  if (currentRead != pendingTank)
+  {
+    pendingTank = currentRead;
+    tankStabilityTime = millis();
+  }
+
+  if ((millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+  {
+    // The value has been the same for 200ms
+    lastStableTank = pendingTank;
+  }
+
+  return lastStableTank;
 }
 
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
@@ -336,6 +358,7 @@ void transitiningProcess(id_t id);
 bool transitiningPredicate(id_t id);
 void transitiningActionChanged(EventArgs e);
 
+void errorActionChanged(EventArgs e);
 // Transition table - keep it as readable blocks. Use predicate timers where necessary.
 Transition transitions[] = {
     // S_IDLE: wait start button. When pressed -> CHECK_START
@@ -371,7 +394,7 @@ Transition transitions[] = {
     {transitiningPredicate, S_TRANSITIONING, S_STARTING, transitiningProcess, transitiningActionChanged},
 
     // ERROR (top or down sensors, heat sensors, motor, heaters)
-    {nullptr, S_ERROR, S_ERROR, nullptr, nullptr}};
+    {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};
 
 const uint8_t numberOfTransitions = sizeof(transitions) / sizeof(Transition);
 
@@ -756,6 +779,20 @@ void transitiningActionChanged(EventArgs e)
   }
 }
 
+void errorActionChanged(EventArgs e)
+{
+  if (e.action == ENTRY)
+  {
+    // KILL EVERYTHING
+    moveOff();
+    vibOff();
+    digitalWrite(HEATER1_PIN, LOW);
+    digitalWrite(HEATER2_PIN, LOW);
+
+    lcdShowStatus("SYSTEM HALTED", "Check Sensors");
+    DBGLN("!!! SAFETY SHUTDOWN !!!");
+  }
+}
 // Setup and loop
 void handleSensorsFailure()
 {
@@ -803,11 +840,12 @@ void setup()
 
   // start FSM in IDLE
   fsm.begin(S_IDLE);
+  wdt_enable(WDTO_4S);
 }
 
 void loop()
 {
+  wdt_reset();
   // Execute FSM regularly
   fsm.execute();
-  delay(10);
 }

@@ -388,7 +388,7 @@ Transition transitions[] = {
     Conatiner 10 -> Renter if first wax sensor is not ready.
     Conatiner 11 -> Renter if first wax sensor is not ready.
     */
-    {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged},
+    {checkingPredicate, S_DOWN, S_PRE_RAISING, checkingProcess, checkingActionChanged},
 
     // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
     // (safe switching between moving and vibrating)
@@ -799,6 +799,7 @@ void onActionChanged(EventArgs e)
 {
   if (e.action == EXIT)
     startTimeTank = 0;
+  return;
 }
 // Setup and loop
 void handleSensorsFailure()

@@ -1,5 +1,5 @@
-// #define DEBUG  // Uncomment to enable Serial output for debugging
-#define TEST // Uncomment to enable fast timers for testing
+#define DEBUG // Uncomment to enable Serial output for debugging
+// #define TEST  // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -17,16 +17,16 @@
 
   Pin mapping:
     Power outputs: D9..D12
-      D11 -> movement motor (MOVE_PIN)
-      D12 -> vibration motor (VIB_PIN)
-      D10 -> heater 1 (HEATER1_PIN)
-      D9  -> heater 2 (HEATER2_PIN)
+      D12 -> movement motor (MOVE_PIN)
+      D11 -> vibration motor (VIB_PIN)
+      D10 -> heater 2 (HEATER2_PIN)
+      D9  -> heater 1 (HEATER1_PIN)
 
     Sensor inputs (active LOW): D5..D8
       D8 -> top-level sensor (TOP_SENSOR_PIN)
       D7 -> bottom-level sensor (BOTTOM_SENSOR_PIN)
-      D6 -> wax-ready sensor (WAX1_SENSOR_PIN)
-      D5 -> wax-ready sensor 2 (WAX2_SENSOR_PIN)
+      D6 -> wax-ready sensor 2 (WAX2_SENSOR_PIN)
+      D5 -> wax-ready sensor 1 (WAX1_SENSOR_PIN)
 
     Tank selector: A0..A3 (4-bit binary, normal analogRead interpreted as digital 0/1)
     Start/Smart button: D2
@@ -50,15 +50,15 @@
 
 // ========================= PIN MAP (as provided) =========================
 // Power outputs
-const uint8_t VIB_PIN = 11;     // D11 - Relay enable for AC motor
 const uint8_t MOVE_PIN = 12;    // D12 - Processing vibration motor
-const uint8_t HEATER1_PIN = 10; // D10  - Heater 2 (power unit)
-const uint8_t HEATER2_PIN = 9;  // D9   - Heater 1
+const uint8_t VIB_PIN = 11;     // D11 - Relay enable for AC motor
+const uint8_t HEATER2_PIN = 10; // D10   - Heater 1
+const uint8_t HEATER1_PIN = 9;  // D9  - Heater 2 (power unit)
 // Sesnors &  thermostats (Active LOW: 0 = active)
-const uint8_t SENSOR_WAX2 = 5;   // D5
-const uint8_t SENSOR_WAX1 = 6;   // D6
-const uint8_t SENSOR_BOTTOM = 7; // D7
 const uint8_t SENSOR_TOP = 8;    // D8
+const uint8_t SENSOR_BOTTOM = 7; // D7
+const uint8_t SENSOR_WAX2 = 6;   // D6
+const uint8_t SENSOR_WAX1 = 5;   // D5
 
 // Container ID (A0..A3)
 const uint8_t PIN_ID_BITS[4] = {A0, A1, A2, A3}; // bit0 LSB .. bit3 MSB
@@ -73,7 +73,7 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 #ifdef TEST
 const unsigned long ONE_MIN_MS = 1000UL;          // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 1UL;          // allow 1 "minute" in test
+const unsigned long MIN_DWELL_MIN = 10UL;         // allow 10 seconds in test
 const unsigned long TANK_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
 #else
 const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
@@ -84,7 +84,7 @@ const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down f
 const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;      // 30 seconds - motion safety timeout
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;       // 1 second - motor swithc saf
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 50;               // debounce time for sensors = 50 ms
+const unsigned long DEBOUNCE_DELAY_MS = 20;               // debounce time for sensors = 20 ms
 
 // Constants derived from dwellMinutes
 const unsigned long TRANSITION_DELAY_MS = 2000UL; // short transition between tanks
@@ -109,34 +109,34 @@ const unsigned int dwellMinutes[13] = {
 #endif
 
 // Program variables
-uint8_t tank = 1;
 unsigned long startTimeTank = 0;  // for time in tank
 unsigned long motorStartTime = 0; // for mechanical timeout
 unsigned long pressedAt = 0;      // for press button
 uint8_t lastStableTank = 1;
 uint8_t pendingTank = 1;
 unsigned long tankStabilityTime = 0;
-const unsigned long TANK_STABILITY_THRESHOLD = 200; // ms
-bool finished = false;                              // Cycle finished
-bool inspection = false;                            // Inspection activated
-bool firstCycle11 = false;                          // First cycle completed on 11th tank
-bool firstCycle12 = false;                          // First cycle completed on 12th tank
-bool holdHandled = false;                           // If we processed the button
+const unsigned long TANK_STABILITY_THRESHOLD = 200UL; // ms
+bool finished = false;                                // Cycle finished
+bool inspection = false;                              // Inspection activated
+bool firstCycle11 = false;                            // First cycle completed on 11th tank
+bool firstCycle12 = false;                            // First cycle completed on 12th tank
+bool holdHandled = false;                             // If we processed the button
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 // Add these variables to your global program variables
 
 uint8_t readTankSelector()
 {
-  uint8_t raw = 0;
+  uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
     uint8_t v = (digitalRead(PIN_ID_BITS[i]) == HIGH) ? 1 : 0;
-    raw |= (v << i);
+    currentRead |= (v << i);
   }
-  uint8_t currentRead = raw + 1;
-  if (currentRead > 12)
+
+  if (currentRead > 12 || currentRead < 1)
     currentRead = 12;
+
   if (currentRead != pendingTank)
   {
     pendingTank = currentRead;
@@ -144,6 +144,7 @@ uint8_t readTankSelector()
   }
   if ((millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
     lastStableTank = pendingTank;
+
   return lastStableTank;
 }
 
@@ -153,27 +154,36 @@ bool sensorActive(uint8_t pin)
   return digitalRead(pin) == LOW;
 }
 
-// Define a simple structure to track sensor state
+// Define a structure to track sensor state
 struct DebouncedSensor
 {
   uint8_t pin;
   unsigned long lastLowTime;
+  bool stableActive; // Added to store the "last known" state
 
-  // A "Method" to check the sensor
-  bool isActive()
+  void update()
   {
-    if (sensorActive(pin))
+    bool rawReading = (digitalRead(pin) == LOW);
+
+    if (rawReading)
     {
       if (lastLowTime == 0)
         lastLowTime = millis();
       if (millis() - lastLowTime >= DEBOUNCE_DELAY_MS)
-        return true; // 50ms stable LOW
+      {
+        stableActive = true;
+      }
     }
     else
     {
-      lastLowTime = 0; // Reset if signal flickers HIGH
+      lastLowTime = 0;
+      stableActive = false;
     }
-    return false;
+  }
+
+  bool isActive()
+  {
+    return stableActive;
   }
 };
 
@@ -187,18 +197,22 @@ DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 void vibOn()
 {
   digitalWrite(VIB_PIN, HIGH);
+  DBGLN("Vibrating on");
 }
 void vibOff()
 {
   digitalWrite(VIB_PIN, LOW);
+  DBGLN("Vibrating off");
 }
 void moveOn()
 {
   digitalWrite(MOVE_PIN, HIGH);
+  DBGLN("Moving on");
 }
 void moveOff()
 {
   digitalWrite(MOVE_PIN, LOW);
+  DBGLN("Moving off");
 }
 
 // Display helper
@@ -220,8 +234,13 @@ void lcdShowStatus(const char *line1, const char *line2)
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
-  unsigned int mins = dwellMinutes[tank];
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate < ONE_MIN_MS && lastUpdate != 0)
+    return; // Only update once per ONE_MIN_MS
 
+  lastUpdate = millis();
+
+  unsigned int mins = dwellMinutes[tank];
   // 1. Safety fallback
   if (mins == 0)
     mins = MIN_DWELL_MIN;
@@ -247,77 +266,43 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned long remainingTotalMins = remainingMs / ONE_MIN_MS;
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
-  static unsigned long lastUpdate = 0;
 
-  if (millis() - lastUpdate < ONE_MIN_MS)
-    return; // Only update once per second
-
-  lastUpdate = millis();
   char buffer[17];
   snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
-
-  // Instead of lcd.clear(), we overwrite
-  lcd.setCursor(0, 1);
-  lcd.print(buffer);
-  lcd.print("     "); // "Clears" trailing old characters with spaces
-
   lcdShowStatus("Remaining Time:", buffer);
-  // 5. Debug Printing
-  DBG("Remaining Time: 0");
-  DBG(hours);
-  DBG(":");
-  if (displayMins < 10)
-    DBG("0"); // Leading zero for minutes
-  DBGLN(displayMins);
+  return;
 }
 
 /**
  * Returns true only after the button has been held for 'duration'
  */
-bool buttonHeld(uint8_t buttonPin, uint32_t duration)
+bool buttonHeld(uint8_t button, uint32_t duration)
 {
-  const uint8_t MAX_SLOTS = 8;
-  static uint8_t pins[MAX_SLOTS] = {0};
-  static unsigned long pressedAt[MAX_SLOTS] = {0};
-  static bool handled[MAX_SLOTS] = {0};
+  uint8_t state = sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
 
-  int idx = -1;
-  for (int i = 0; i < MAX_SLOTS; ++i)
+  if (state)
   {
-    if (pins[i] == buttonPin)
+    if (pressedAt == 0)
     {
-      idx = i;
-      break;
+      // Just started pressing
+      pressedAt = millis();
+      holdHandled = false;
     }
-    if (pins[i] == 0)
+    else if (!holdHandled && (millis() - pressedAt >= duration))
     {
-      pins[i] = buttonPin;
-      idx = i;
-      break;
-    }
-  }
-  if (idx < 0)
-    return false;
-
-  bool pressed = sensorActive(buttonPin);
-  if (pressed)
-  {
-    if (pressedAt[idx] == 0)
-    {
-      pressedAt[idx] = millis();
-      handled[idx] = false;
-    }
-    else if (!handled[idx] && millis() - pressedAt[idx] >= duration)
-    {
-      handled[idx] = true;
+      // Threshold reached!
+      holdHandled = true;
+      pressedAt = 0;
       return true;
     }
   }
   else
   {
-    pressedAt[idx] = 0;
-    handled[idx] = false;
+    // Button released - reset everything
+    pressedAt = 0;
+    holdHandled = false;
   }
+
   return false;
 }
 
@@ -327,8 +312,10 @@ enum MainState : id_t
   S_IDLE = 0,
   S_STARTING,
   S_LOWERING,
+  S_PRE_DOWN,
   S_DOWN,
   S_CHECKING,
+  S_PRE_RAISING,
   S_RAISING,
   S_UP,
   S_TRANSITIONING,
@@ -368,6 +355,8 @@ bool transitiningPredicate(id_t id);
 void transitiningActionChanged(EventArgs e);
 
 void errorActionChanged(EventArgs e);
+
+void onActionChanged(EventArgs e);
 // Transition table - keep it as readable blocks. Use predicate timers where necessary.
 Transition transitions[] = {
     // S_IDLE: wait start button. When pressed -> CHECK_START
@@ -376,22 +365,30 @@ Transition transitions[] = {
     // S_STARTING: read tank and prepare to start.
     {startingPredicate, S_IDLE, S_LOWERING, nullptr, startingActionChanged},
 
-    // S_LOWERING: run movement motor until bottom sensor active -> if bottom sensor active -> VIBRATE else ERROR
-    {loweringPredicate, S_LOWERING, S_DOWN, loweringProcess, loweringActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
+    // S_LOWERING: run movement motor until bottom sensor active -> if bottom sensor active -> DOWN else ERROR
+    {loweringPredicate, S_LOWERING, S_PRE_DOWN, loweringProcess, loweringActionChanged},
+
+    // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
+    // (safe switching between moving and vibrating)
+    {nullptr, S_PRE_DOWN, S_DOWN, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-                                  Conatiner 10 -> Start first heater.
-                                  Container 11 -> Start second heater.
-                                  Container 12 -> If finished then stop vibrating.
-                        */
-    {downPredicate, S_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
+    Conatiner 10 -> Start first heater.
+    Container 11 -> Start second heater.
+    Container 12 -> If finished then stop vibrating.
+    */
+    {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-                                  Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-                                  Conatiner 10 -> Renter if first wax sensor is not ready.
-                                  Conatiner 11 -> Renter if first wax sensor is not ready.
-                        */
-    {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
+    Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+    Conatiner 10 -> Renter if first wax sensor is not ready.
+    Conatiner 11 -> Renter if first wax sensor is not ready.
+    */
+    {checkingPredicate, S_DOWN, S_RAISING, checkingProcess, checkingActionChanged},
+
+    // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
+    // (safe switching between moving and vibrating)
+    {nullptr, S_PRE_RAISING, S_RAISING, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
     {raisingPredicate, S_RAISING, S_UP, raisingProcess, raisingActionChanged},
@@ -421,8 +418,6 @@ bool idlePredicate(id_t d)
 }
 void idleProcess(id_t id)
 {
-  // display waiting state
-  lcdShowStatus("Status: Idle", "Press Start");
   return;
 }
 void idleActionChanged(EventArgs e)
@@ -431,10 +426,10 @@ void idleActionChanged(EventArgs e)
   {
   case ENTRY:
     DBGLN("Enter idle");
+    lcdShowStatus("Status: Idle", "Press Start");
     finished = false;
     firstCycle11 = false;
     firstCycle12 = false;
-    startTimeTank = 0;
     break;
   case EXIT:
     DBGLN("Exit idle");
@@ -450,12 +445,12 @@ bool startingPredicate(id_t id)
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
 
-  if (tank == 11 && !wax1Ready.isActive())
+  if (lastStableTank == 11 && !wax1Ready.isActive())
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     fsm.begin(S_ERROR);
   }
-  if (tank == 12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
+  if (lastStableTank == 12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
   {
     lcdShowStatus("Critical Error", "heater1 or sensor1");
     DBGLN("Critical error container 12 with no sensor 2 activated");
@@ -472,16 +467,12 @@ void startingActionChanged(EventArgs e)
   {
   case ENTRY:
   {
-    startTimeTank = 0;
-    uint8_t currentTank = readTankSelector();
-    tank = currentTank;
-    char buf1[17];
-    char buf2[17];
-    snprintf(buf1, sizeof(buf1), "Tank: %u", currentTank);
-    snprintf(buf2, sizeof(buf2), "Starting...");
-    lcdShowStatus(buf1, buf2);
+    lastStableTank = readTankSelector();
+    char buf[17];
+    snprintf(buf, sizeof(buf), "Tank: %u", lastStableTank);
+    lcdShowStatus("Starting...", buf);
     DBG("Entering tank: ");
-    DBGLN(currentTank);
+    DBGLN(lastStableTank);
     break;
   }
   case EXIT:
@@ -500,7 +491,7 @@ void loweringProcess(id_t id)
 }
 bool loweringPredicate(id_t id)
 {
-  // if bottom sensor active -> true to move to VIBRATE
+  // if bottom sensor active -> true, so move to DOWN
   if (bottomLimit.isActive() && !topLimit.isActive())
   {
     moveOff();
@@ -544,14 +535,13 @@ bool downPredicate(id_t id)
     DBGLN("Raising to top");
     lcdShowStatus("Button Pressed", "Raising...");
     inspection = true;
-    startTimeTank = 0;
     return false;
   }
   return true;
 }
 void downProcess(id_t id)
 {
-  if (tank == 12 && finished)
+  if (lastStableTank == 12 && finished)
   {
     vibOff();
     lcdShowStatus("Finished", "Press Run...");
@@ -561,25 +551,21 @@ void downProcess(id_t id)
   }
 
   if (!digitalRead(VIB_PIN))
-  {
     vibOn();
-    DBGLN("Start Vibrating");
-  }
 
-  if (tank == 10 && !wax1Ready.isActive() && !digitalRead(HEATER1_PIN))
+  if (lastStableTank == 10 && !wax1Ready.isActive() && !digitalRead(HEATER1_PIN))
   {
     digitalWrite(HEATER1_PIN, HIGH);
     DBGLN("Start First Heater");
   }
-  else if (tank == 11 && !wax1Ready.isActive() && !digitalRead(HEATER2_PIN))
+  else if (lastStableTank == 11 && !wax1Ready.isActive() && !digitalRead(HEATER2_PIN))
   {
     digitalWrite(HEATER2_PIN, HIGH);
     DBGLN("Start Second Heater");
   }
 
   // Print remaining time on lcd screen.
-  printRemainingTimeForTank(tank);
-
+  printRemainingTimeForTank(lastStableTank);
   return;
 }
 void downActionChanged(EventArgs e)
@@ -600,12 +586,12 @@ void downActionChanged(EventArgs e)
 
 void checkingProcess(id_t id)
 {
-  if (tank == 11)
+  if (lastStableTank == 11)
   {
     firstCycle11 = true;
     return;
   }
-  if (tank == 12)
+  if (lastStableTank == 12)
   {
     if (firstCycle12)
     {
@@ -618,23 +604,22 @@ void checkingProcess(id_t id)
 }
 bool checkingPredicate(id_t id)
 {
-  if (tank == 10 && !wax1Ready.isActive())
+  if (lastStableTank == 10 && !wax1Ready.isActive())
   {
     DBGLN("Returning to down state because wax sensor is not ");
     lcdShowStatus("Waiting for", "Wax 1 Heat...");
     return false;
   }
-  else if (tank == 11 && (!wax2Ready.isActive() || !firstCycle11))
+  else if (lastStableTank == 11 && (!wax2Ready.isActive() || !firstCycle11))
   {
     DBGLN("Moving to second hour");
     return false;
   }
-  else if (tank == 12)
+  else if (lastStableTank == 12)
   {
     DBGLN("Returning to down state 12 containers");
     return false;
   }
-  startTimeTank = 0;
   return true;
 }
 void checkingActionChanged(EventArgs e)
@@ -766,10 +751,10 @@ bool transitiningPredicate(id_t id)
     return false; // remain or exit to error as FSM sets state elsewhere
   }
 
-  uint8_t currentContainer = readTankSelector();
-  if (currentContainer != tank)
+  uint8_t currentTank = readTankSelector();
+  if (currentTank != lastStableTank)
   {
-    tank = currentContainer;
+    lastStableTank = currentTank;
     return true;
   }
   return false;
@@ -802,13 +787,23 @@ void errorActionChanged(EventArgs e)
     DBGLN("!!! SAFETY SHUTDOWN !!!");
   }
 }
+
+void onActionChanged(EventArgs e)
+{
+  if (e.action == EXIT)
+    startTimeTank = 0;
+}
 // Setup and loop
 void handleSensorsFailure()
 {
-  bool topSensor = !topLimit.isActive();
+  bool topSensor = topLimit.isActive();
   bool bottomSensor = bottomLimit.isActive();
   bool heatSensor_1 = wax1Ready.isActive();
   bool heatSensor_2 = wax2Ready.isActive();
+  DBGLN(topSensor);
+  DBGLN(bottomSensor);
+  DBGLN(heatSensor_1);
+  DBGLN(heatSensor_2);
 }
 void setupPins()
 {
@@ -841,12 +836,10 @@ void setup()
     DBGLN("Serial debug enabled");
 #endif
   setupPins();
-  // TODO: Handle sensors error
-  handleSensorsFailure();
   Wire.begin();
+  // TODO: Handle sensors error
   lcd.init();
   lcd.backlight();
-
   // start FSM in IDLE
   fsm.begin(S_IDLE);
   wdt_enable(WDTO_4S);
@@ -855,6 +848,13 @@ void setup()
 void loop()
 {
   wdt_reset();
+
+  // Update all sensor states first
+  topLimit.update();
+  bottomLimit.update();
+  wax1Ready.update();
+  wax2Ready.update();
+
   // Execute FSM regularly
   fsm.execute();
 }

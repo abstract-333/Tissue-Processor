@@ -1,5 +1,5 @@
 #define DEBUG // Uncomment to enable Serial output for debugging
-// #define TEST  // Uncomment to enable fast timers for testing
+#define TEST  // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -121,11 +121,12 @@ bool inspection = false;                              // Inspection activated
 bool firstCycle11 = false;                            // First cycle completed on 11th tank
 bool firstCycle12 = false;                            // First cycle completed on 12th tank
 bool holdHandled = false;                             // If we processed the button
+bool tankChanged = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 // Add these variables to your global program variables
 
-uint8_t readTankSelector()
+void readTankSelector()
 {
   uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
@@ -135,17 +136,20 @@ uint8_t readTankSelector()
   }
 
   if (currentRead > 12 || currentRead < 1)
-    currentRead = 12;
+    return; // TODO: Handle error
 
   if (currentRead != pendingTank)
   {
     pendingTank = currentRead;
     tankStabilityTime = millis();
+    return;
   }
   if ((millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+  {
     lastStableTank = pendingTank;
-
-  return lastStableTank;
+    tankChanged = true;
+    return;
+  }
 }
 
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
@@ -409,7 +413,6 @@ FiniteState fsm(transitions, numberOfTransitions);
 // Implementation: Predicates, Processes and Events
 bool idlePredicate(id_t id)
 {
-  DBGLN(id);
   if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     DBGLN("Start button pressed");
@@ -426,6 +429,7 @@ void idleActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
+    readTankSelector();
     DBGLN("Enter idle");
     lcdShowStatus("Status: Idle", "Press Start");
     finished = false;
@@ -468,8 +472,9 @@ void startingActionChanged(EventArgs e)
   {
   case ENTRY:
   {
-    lastStableTank = readTankSelector();
+    readTankSelector();
     char buf[17];
+    tankChanged = false;
     snprintf(buf, sizeof(buf), "Tank: %u", lastStableTank);
     lcdShowStatus("Starting...", buf);
     DBG("Entering tank: ");
@@ -559,12 +564,12 @@ void downProcess(id_t id)
   if (!digitalRead(VIB_PIN))
     vibOn();
 
-  if (lastStableTank == 10 && !wax1Ready.isActive() && !digitalRead(HEATER1_PIN))
+  if (lastStableTank == 10 && !digitalRead(HEATER1_PIN))
   {
     digitalWrite(HEATER1_PIN, HIGH);
     DBGLN("Start First Heater");
   }
-  else if (lastStableTank == 11 && !wax1Ready.isActive() && !digitalRead(HEATER2_PIN))
+  else if (lastStableTank == 11 && !digitalRead(HEATER2_PIN))
   {
     digitalWrite(HEATER2_PIN, HIGH);
     DBGLN("Start Second Heater");
@@ -694,11 +699,9 @@ void raisingProcess(id_t id)
 bool raisingPredicate(id_t id)
 {
 
-  // if top sensor active -> true to move to VIBRATE
+  // if top sensor active -> true to move to TRANSITION
   if (topLimit.isActive() && !bottomLimit.isActive())
   {
-    moveOff();
-    motorStartTime = 0;
     DBGLN("Reached Top");
     return true;
   }
@@ -709,8 +712,7 @@ bool raisingPredicate(id_t id)
     moveOff();
     DBGLN("Raise timeout -> ERROR");
     lcdShowStatus("ERROR", "MOTOR OVER TIME");
-    fsm.begin(S_ERROR);
-    return false; // remain or exit to error as FSM sets state elsewhere
+    fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
   }
 
   return false; // continue Raising
@@ -753,16 +755,14 @@ bool transitiningPredicate(id_t id)
     moveOff();
     motorStartTime = 0;
     DBGLN("Lower timeout -> ERROR");
-    fsm.begin(S_ERROR);
-    return false; // remain or exit to error as FSM sets state elsewhere
+    fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
   }
 
-  uint8_t currentTank = readTankSelector();
-  if (currentTank != lastStableTank)
-  {
-    lastStableTank = currentTank;
+  readTankSelector();
+
+  if (tankChanged)
     return true;
-  }
+
   return false;
 }
 void transitiningActionChanged(EventArgs e)
@@ -771,6 +771,7 @@ void transitiningActionChanged(EventArgs e)
   {
   case ENTRY:
     DBGLN("Entering Transition State");
+    lcdShowStatus("Transition State", "");
     break;
 
   case EXIT:

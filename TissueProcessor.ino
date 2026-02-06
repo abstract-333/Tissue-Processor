@@ -323,7 +323,7 @@ enum MainState : id_t
 };
 
 // Forward declarations for predicate/process/event functions
-bool idlePredicate(id_t d);
+bool idlePredicate(id_t id);
 void idleProcess(id_t id);
 void idleActionChanged(EventArgs e);
 
@@ -407,8 +407,9 @@ const uint8_t numberOfTransitions = sizeof(transitions) / sizeof(Transition);
 FiniteState fsm(transitions, numberOfTransitions);
 
 // Implementation: Predicates, Processes and Events
-bool idlePredicate(id_t d)
+bool idlePredicate(id_t id)
 {
+  DBGLN(id);
   if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     DBGLN("Start button pressed");
@@ -530,11 +531,16 @@ void loweringActionChanged(EventArgs e)
 
 bool downPredicate(id_t id)
 {
+  if (!bottomLimit.isActive() || topLimit.isActive())
+  {
+    DBGLN("Eror");
+  }
   if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
+    vibOff();
+    inspection = true;
     DBGLN("Raising to top");
     lcdShowStatus("Button Pressed", "Raising...");
-    inspection = true;
     return false;
   }
   return true;

@@ -1,6 +1,11 @@
 name: Arduino Compile
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
 
 jobs:
   build:
@@ -19,7 +24,5 @@ jobs:
           libraries: |
             - source-url: https://github.com/johnrickman/LiquidCrystal_I2C.git
             - source-url: https://github.com/MicroBeaut/Finite-State.git
-          sketch-paths: |
-            - "."
           # This helper avoids failure if the folder structure is slightly off
           enable-deltas-report: true

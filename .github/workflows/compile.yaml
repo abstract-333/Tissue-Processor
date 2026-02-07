@@ -24,5 +24,7 @@ jobs:
           libraries: |
             - source-url: https://github.com/johnrickman/LiquidCrystal_I2C.git
             - source-url: https://github.com/MicroBeaut/Finite-State.git
+          sketch-paths: |
+            - ./TissueProcessor
           # This helper avoids failure if the folder structure is slightly off
           enable-deltas-report: true

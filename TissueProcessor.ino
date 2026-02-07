@@ -1,5 +1,5 @@
-#define DEBUG // Uncomment to enable Serial output for debugging
-#define TEST  // Uncomment to enable fast timers for testing
+// #define DEBUG // Uncomment to enable Serial output for debugging
+// #define TEST  // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -425,17 +425,17 @@ Transition transitions[] = {
     {nullptr, S_PRE_DOWN, S_DOWN, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-        Conatiner 10 -> Start first heater.
-        Container 11 -> Start second heater.
-        Container 12 -> If finished then stop vibrating.
-        */
+          Conatiner 10 -> Start first heater.
+          Container 11 -> Start second heater.
+          Container 12 -> If finished then stop vibrating.
+          */
     {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-        Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-        Conatiner 10 -> Renter if first wax sensor is not ready.
-        Conatiner 11 -> Renter if first wax sensor is not ready.
-        */
+          Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+          Conatiner 10 -> Renter if first wax sensor is not ready.
+          Conatiner 11 -> Renter if first wax sensor is not ready.
+          */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, checkingProcess, checkingActionChanged},
 
     // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state

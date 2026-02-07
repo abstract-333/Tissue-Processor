@@ -226,22 +226,50 @@ void moveOff()
   DBGLN("Moving off");
 }
 
-// Display helper
-void lcdShowStatus(const char *line1, const char *line2)
+// Helper for F() strings
+void lcdPrintPadded(const __FlashStringHelper *text)
 {
-  char buffer[17]; // 16 chars + null terminator
+  lcd.print(text);
+  // strlen_P is the version of strlen that reads from Flash
+  int len = strlen_P((PGM_P)text);
+  for (int i = len; i < 16; i++)
+  {
+    lcd.print(F(" "));
+  }
+}
 
+// Helper for RAM strings
+void lcdPrintPadded(const char *text)
+{
+  lcd.print(text);
+  int len = strlen(text);
+  for (int i = len; i < 16; i++)
+  {
+    lcd.print(F(" "));
+  }
+}
+// Version for F() macro strings (Flash memory)
+void lcdShowStatus(const __FlashStringHelper *line1, const __FlashStringHelper *line2)
+{
   lcd.setCursor(0, 0);
-  sprintf(buffer, "%-16s", line1); // %-16s means "left-justify and pad to 16"
-  lcd.print(buffer);
-
+  lcdPrintPadded(line1);
   lcd.setCursor(0, 1);
-  sprintf(buffer, "%-16s", line2);
-  lcd.print(buffer);
-
+  lcdPrintPadded(line2);
   DBGLN(line1);
   DBGLN(line2);
 }
+
+// Version for RAM-based strings (like buffers or variables)
+void lcdShowStatus(const char *line1, const char *line2)
+{
+  lcd.setCursor(0, 0);
+  lcdPrintPadded(line1);
+  lcd.setCursor(0, 1);
+  lcdPrintPadded(line2);
+  DBGLN(line1);
+  DBGLN(line2);
+}
+
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
@@ -278,9 +306,22 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
 
-  char buffer[17];
-  snprintf(buffer, sizeof(buffer), "%d:%02d", hours, displayMins);
-  lcdShowStatus("Remaining Time:", buffer);
+  lcd.setCursor(0, 0);
+  lcdPrintPadded(F("Remaining Time:"));
+
+  lcd.setCursor(0, 1);
+  lcd.print(hours);
+  lcd.print(F(":"));
+  if (displayMins < 10)
+    lcd.print(F("0")); // Manually handle the leading zero
+  lcd.print(displayMins);
+
+  // Fill the rest of the line with spaces
+  int timeWidth = (hours > 9 ? 2 : 1) + 1 + 2; // hours + colon + mins
+  for (int i = timeWidth; i < 16; i++)
+  {
+    lcd.print(F(" "));
+  }
   return;
 }
 
@@ -384,17 +425,17 @@ Transition transitions[] = {
     {nullptr, S_PRE_DOWN, S_DOWN, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-    Conatiner 10 -> Start first heater.
-    Container 11 -> Start second heater.
-    Container 12 -> If finished then stop vibrating.
-    */
+      Conatiner 10 -> Start first heater.
+      Container 11 -> Start second heater.
+      Container 12 -> If finished then stop vibrating.
+      */
     {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-    Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-    Conatiner 10 -> Renter if first wax sensor is not ready.
-    Conatiner 11 -> Renter if first wax sensor is not ready.
-    */
+      Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+      Conatiner 10 -> Renter if first wax sensor is not ready.
+      Conatiner 11 -> Renter if first wax sensor is not ready.
+      */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, checkingProcess, checkingActionChanged},
 
     // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
@@ -438,7 +479,7 @@ void idleActionChanged(EventArgs e)
   case ENTRY:
     readTankSelector();
     DBGLN("Enter idle");
-    lcdShowStatus("Status: Idle", "Press Start");
+    lcdShowStatus(F("Status: Idle"), F("Press Start"));
     finished = false;
     firstCycle11 = false;
     firstCycle12 = false;
@@ -453,18 +494,18 @@ bool startingPredicate(id_t id)
 {
   if (!topLimit.isActive())
   {
-    lcdShowStatus("Critical Error", "Top sensor");
+    lcdShowStatus(F("Critical Error"), F("Top sensor"));
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
 
   if (lastStableTank == TANK_11 && !wax1Ready.isActive())
   {
-    lcdShowStatus("Critical Error", "heater1 or sensor1");
+    lcdShowStatus(F("Critical Error"), F("heater1 or sensor1"));
     fsm.begin(S_ERROR);
   }
   if (lastStableTank == TANK_12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
   {
-    lcdShowStatus("Critical Error", "heater1 or sensor1");
+    lcdShowStatus(F("Critical Error"), F("heater1 or sensor1"));
     DBGLN("Critical error container 12 with no sensor 2 activated");
     fsm.begin(S_ERROR);
   }
@@ -518,7 +559,7 @@ bool loweringPredicate(id_t id)
     moveOff();
     motorStartTime = 0;
     DBGLN("Lower timeout -> ERROR");
-    lcdShowStatus("ERROR", "MOTOR OVER TIME");
+    lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
     fsm.begin(S_ERROR);
     return false; // remain or exit to error as FSM sets state elsewhere
   }
@@ -531,7 +572,7 @@ void loweringActionChanged(EventArgs e)
   {
   case ENTRY:
     DBGLN("Lowering..");
-    lcdShowStatus("Lowering", "");
+    lcdShowStatus(F("Lowering"), F(""));
     break;
 
   case EXIT:
@@ -551,7 +592,7 @@ bool downPredicate(id_t id)
     vibOff();
     inspection = true;
     DBGLN("Raising to top");
-    lcdShowStatus("Button Pressed", "Raising...");
+    lcdShowStatus(F("Button Pressed"), F("Raising..."));
     return false;
   }
   return true;
@@ -563,7 +604,7 @@ void downProcess(id_t id)
     if (digitalRead(VIB_PIN))
     {
       vibOff();
-      lcdShowStatus("Finished", "Press Run...");
+      lcdShowStatus(F("Finished"), F("Press Run..."));
       DBGLN("Finished");
       DBGLN("Press Run to continue...");
     }
@@ -627,7 +668,7 @@ bool checkingPredicate(id_t id)
   if (lastStableTank == TANK_10 && !wax1Ready.isActive())
   {
     DBGLN("Returning to down state because wax sensor is not ");
-    lcdShowStatus("Waiting for", "Wax 1 Heat...");
+    lcdShowStatus(F("Waiting for"), F("Wax 1 Heat..."));
     return false;
   }
   if (lastStableTank == TANK_11 && (!wax2Ready.isActive() || !firstCycle11))
@@ -668,7 +709,7 @@ void upProcess(id_t id)
     motorStartTime = 0;
     DBGLN("Top Position");
     DBGLN("Press Run to continue");
-    lcdShowStatus("Top inspection", "Press Run");
+    lcdShowStatus(F("Top inspection"), F("Press Run"));
     return;
   }
   return;
@@ -719,7 +760,7 @@ bool raisingPredicate(id_t id)
     moveOff();
     motorStartTime = 0;
     DBGLN("Raise timeout -> ERROR");
-    lcdShowStatus("ERROR", "MOTOR OVER TIME");
+    lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
     fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
   }
 
@@ -735,12 +776,12 @@ void raisingActionChanged(EventArgs e)
     if (motorStartTime == 0)
       motorStartTime = millis();
 
-    lcdShowStatus("Raising", "");
+    lcdShowStatus(F("Raising"), F(""));
     break;
 
   case EXIT:
     DBGLN("Exit Raising state");
-    lcdShowStatus("Reached top", "");
+    lcdShowStatus(F("Reached top"), F(""));
     break;
   }
 }
@@ -754,7 +795,7 @@ bool transitiningPredicate(id_t id)
 {
   if (!topLimit.isActive())
   {
-    lcdShowStatus("Critical Error", "Top sensor");
+    lcdShowStatus(F("Critical Error"), F("Top sensor"));
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
   if (motorStartTime != 0 && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
@@ -783,7 +824,7 @@ void transitiningActionChanged(EventArgs e)
       motorStartTime = millis();
 
     DBGLN("Entering Transition State");
-    lcdShowStatus("Transition State", "");
+    lcdShowStatus(F("Transition State"), F(""));
     break;
 
   case EXIT:
@@ -803,7 +844,7 @@ void errorActionChanged(EventArgs e)
     digitalWrite(HEATER1_PIN, LOW);
     digitalWrite(HEATER2_PIN, LOW);
 
-    lcdShowStatus("SYSTEM HALTED", "Check Sensors");
+    lcdShowStatus(F("SYSTEM HALTED"), F("Check Sensors"));
     DBGLN("!!! SAFETY SHUTDOWN !!!");
   }
 }

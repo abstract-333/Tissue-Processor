@@ -425,17 +425,17 @@ Transition transitions[] = {
     {nullptr, S_PRE_DOWN, S_DOWN, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-      Conatiner 10 -> Start first heater.
-      Container 11 -> Start second heater.
-      Container 12 -> If finished then stop vibrating.
-      */
+        Conatiner 10 -> Start first heater.
+        Container 11 -> Start second heater.
+        Container 12 -> If finished then stop vibrating.
+        */
     {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-      Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
-      Conatiner 10 -> Renter if first wax sensor is not ready.
-      Conatiner 11 -> Renter if first wax sensor is not ready.
-      */
+        Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down state.
+        Conatiner 10 -> Renter if first wax sensor is not ready.
+        Conatiner 11 -> Renter if first wax sensor is not ready.
+        */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, checkingProcess, checkingActionChanged},
 
     // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
@@ -521,9 +521,21 @@ void startingActionChanged(EventArgs e)
   case ENTRY:
   {
     readTankSelector();
-    char buf[17];
-    snprintf(buf, sizeof(buf), "Tank: %u", lastStableTank);
-    lcdShowStatus("Starting...", buf);
+    lcd.setCursor(0, 0);
+    lcdPrintPadded(F("Starting...")); // Uses F() to keep text in Flash
+
+    lcd.setCursor(0, 1);
+    lcd.print(F("Tank: "));    // Print the label from Flash
+    lcd.print(lastStableTank); // Print the variable directly
+
+    // Manual Padding: Clear the rest of the line (16 chars total)
+    // "Tank: " is 6 chars, lastStableTank is 1 or 2 chars.
+    int usedChars = (lastStableTank < 10) ? 7 : 8;
+    for (int i = usedChars; i < 16; i++)
+    {
+      lcd.print(F(" "));
+    }
+
     DBG("Entering tank: ");
     DBGLN(lastStableTank);
     break;

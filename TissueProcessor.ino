@@ -141,7 +141,7 @@ void readTankSelector()
   }
 
   if (currentRead > 12 || currentRead < 1)
-    return; // TODO: Handle error
+    return; // TODO: Handle error using fsm
 
   if (currentRead != pendingTank)
   {

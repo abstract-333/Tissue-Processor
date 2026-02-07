@@ -19,5 +19,8 @@ jobs:
           libraries: |
             - name: "LiquidCrystal I2C"
             - name: "FiniteState" 
+          # Use the directory path, not the file path
           sketch-paths: |
-            - ./TissueProcessor.ino
+            - ./TissueProcessor
+          # This helper avoids failure if the folder structure is slightly off
+          enable-deltas-report: true

@@ -1,6 +1,4 @@
 ![workflow status](https://github.com/abstract-333/Tissue-Processor/actions/workflows/compile.yaml/badge.svg)
-![Flash Usage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abstract-333/GIST_TOKEN/rawflash.json)
-![RAM Usage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abstract-333/GIST_TOKEN/raw/ram.json)
 
 # Tissue Processor 
 An Arduino-based C++ implementation for a 12-phase medical tissue processor. This system automates the movement and timing of biological samples through 12 distinct reagent containers (phases) using a robust **Finite State Machine (FSM)**.

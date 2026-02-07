@@ -17,8 +17,8 @@ jobs:
           platforms: |
             - name: "arduino:avr"
           libraries: |
-            - name: "LiquidCrystal I2C"
-            - name: "FiniteState" 
+            - source-url: https://github.com/johnrickman/LiquidCrystal_I2C.git
+            - source-url: https://github.com/MicroBeaut/Finite-State.git
           # Use the directory path, not the file path
           sketch-paths: |
             - .

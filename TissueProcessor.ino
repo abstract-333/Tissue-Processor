@@ -72,20 +72,20 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL;                 // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 10UL;                // allow 10 seconds in test
-const unsigned long TANK_TIME_MS = 10UL * 1000UL;        // stays down for 10 seconds while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 2000UL;   // 2 seconds
-const unsigned long TRANSITION_DELAY_MS = 10UL * 1000UL; // 15 seconds - short transition between tanks
+const unsigned long ONE_MIN_MS = 1000UL;               // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 10UL;              // allow 10 seconds in test
+const unsigned long TANK_TIME_MS = 10UL * 1000UL;      // stays down for 10 seconds while vibrating
+const unsigned long TANK_STABILITY_THRESHOLD = 2000UL; // 2 seconds
+const unsigned long MOVE_TIMEOUT_MS = 10UL * 1000UL;   // 10 seconds - motion safety timeout
 #else
 const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
 const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
 const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 const unsigned long TANK_STABILITY_THRESHOLD = 100UL;    // ms
-const unsigned long TRANSITION_DELAY_MS = 30UL * 1000UL; // 30 seconds - short transition between tanks
+const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion safety timeout
+
 #endif
 
-const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;      // 30 seconds - motion safety timeout
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;       // 1 second - motor swithc saf
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;               // debounce time for sensors = 20 ms

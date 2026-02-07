@@ -21,6 +21,6 @@ jobs:
             - source-url: https://github.com/MicroBeaut/Finite-State.git
           # Use the directory path, not the file path
           sketch-paths: |
-            - ./
+            - .TissueProcessor.ino
           # This helper avoids failure if the folder structure is slightly off
           enable-deltas-report: true

@@ -577,11 +577,6 @@ void startingActionChanged(EventArgs e)
 
 bool loweringPredicate(id_t id)
 {
-  if (topLimit.isActive() && bottomLimit.isActive())
-  {
-    fsm.begin(S_ERROR);
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
-  }
   // if bottom sensor active -> true, so move to DOWN
   if (bottomLimit.isActive() && !topLimit.isActive())
   {
@@ -599,7 +594,6 @@ bool loweringPredicate(id_t id)
     DBGLN("Lower timeout -> ERROR");
     lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
     fsm.begin(S_ERROR);
-    return false; // remain or exit to error as FSM sets state elsewhere
   }
 
   return false; // continue lowering
@@ -783,11 +777,6 @@ void upActionChanged(EventArgs e)
 
 bool raisingPredicate(id_t id)
 {
-  if (topLimit.isActive() && bottomLimit.isActive())
-  {
-    fsm.begin(S_ERROR);
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
-  }
   // if top sensor active -> true to move to TRANSITION
   if (topLimit.isActive() && !bottomLimit.isActive())
   {
@@ -946,7 +935,7 @@ void setup()
   lcd.backlight();
   // start FSM in IDLE
   fsm.begin(S_IDLE);
-  wdt_enable(WDTO_4S);
+  wdt_enable(WDTO_2S);
 }
 
 void loop()
@@ -959,6 +948,17 @@ void loop()
   wax1Ready.update();
   wax2Ready.update();
 
+  // FAIL-SAFE: If both sensors are triggered, something is physically wrong (wiring fault)
+  if (topLimit.isActive() && bottomLimit.isActive())
+  {
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    fsm.begin(S_ERROR);
+  }
+  if (lastStableTank > 12 || lastStableTank < 1)
+  {
+    lcdShowStatus(F("ERROR"), F("Tank read"));
+    fsm.begin(S_ERROR);
+  }
   // Execute FSM regularly
   fsm.execute();
 }

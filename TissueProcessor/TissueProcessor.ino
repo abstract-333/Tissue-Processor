@@ -137,7 +137,6 @@ bool heater2State = false;
 
 void readTankSelector()
 {
-  return;
   uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
@@ -416,7 +415,6 @@ void idleActionChanged(EventArgs e);
 bool startingPredicate(id_t id);
 void startingActionChanged(EventArgs e);
 
-void loweringProcess(id_t id);
 bool loweringPredicate(id_t id);
 void loweringActionChanged(EventArgs e);
 
@@ -428,7 +426,6 @@ void upProcess(id_t id);
 bool upPredicate(id_t id);
 void upActionChanged(EventArgs e);
 
-void raisingProcess(id_t id);
 bool raisingPredicate(id_t id);
 void raisingActionChanged(EventArgs e);
 
@@ -436,7 +433,6 @@ void checkingProcess(id_t id);
 bool checkingPredicate(id_t id);
 void checkingActionChanged(EventArgs e);
 
-void transitiningProcess(id_t id);
 bool transitiningPredicate(id_t id);
 void transitiningActionChanged(EventArgs e);
 
@@ -452,7 +448,7 @@ Transition transitions[] = {
     {startingPredicate, S_IDLE, S_LOWERING, nullptr, startingActionChanged},
 
     // S_LOWERING: run movement motor until bottom sensor active -> if bottom sensor active -> DOWN else ERROR
-    {loweringPredicate, S_LOWERING, S_PRE_DOWN, loweringProcess, loweringActionChanged},
+    {loweringPredicate, S_LOWERING, S_PRE_DOWN, nullptr, loweringActionChanged},
 
     // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
     // (safe switching between moving and vibrating)
@@ -477,13 +473,13 @@ Transition transitions[] = {
     {nullptr, S_PRE_RAISING, S_RAISING, nullptr, onActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
-    {raisingPredicate, S_RAISING, S_UP, raisingProcess, raisingActionChanged},
+    {raisingPredicate, S_RAISING, S_UP, nullptr, raisingActionChanged},
 
     // S_UP: wait if insepction is acitvitated, otherwise proceed to transition state
     {upPredicate, S_UP, S_TRANSITIONING, upProcess, upActionChanged},
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's logic or to START if finished
-    {transitiningPredicate, S_TRANSITIONING, S_STARTING, transitiningProcess, transitiningActionChanged},
+    {transitiningPredicate, S_TRANSITIONING, S_STARTING, nullptr, transitiningActionChanged},
 
     // ERROR (top or down sensors, heat sensors, motor, heaters)
     {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};
@@ -579,15 +575,6 @@ void startingActionChanged(EventArgs e)
   }
 }
 
-void loweringProcess(id_t id)
-{
-  if (!motorState)
-    moveOn();
-
-  // check mechanical timeout
-  if (motorStartTime == 0)
-    motorStartTime = millis();
-}
 bool loweringPredicate(id_t id)
 {
   // if bottom sensor active -> true, so move to DOWN
@@ -617,6 +604,13 @@ void loweringActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
+    if (!motorState)
+      moveOn();
+
+    // check mechanical timeout
+    if (motorStartTime == 0)
+      motorStartTime = millis();
+
     DBGLN("Lowering..");
     lcdShowStatus(F("Lowering"), F(""));
     break;
@@ -782,14 +776,8 @@ void upActionChanged(EventArgs e)
   }
 }
 
-void raisingProcess(id_t id)
-{
-  if (!motorState)
-    moveOn();
-}
 bool raisingPredicate(id_t id)
 {
-
   // if top sensor active -> true to move to TRANSITION
   if (topLimit.isActive() && !bottomLimit.isActive())
   {
@@ -819,6 +807,8 @@ void raisingActionChanged(EventArgs e)
     if (motorStartTime == 0)
       motorStartTime = millis();
 
+    if (!motorState)
+      moveOn();
     lcdShowStatus(F("Raising"), F(""));
     break;
 
@@ -829,11 +819,6 @@ void raisingActionChanged(EventArgs e)
   }
 }
 
-void transitiningProcess(id_t id)
-{
-  if (!motorState)
-    moveOn();
-}
 bool transitiningPredicate(id_t id)
 {
   if (!topLimit.isActive())
@@ -866,6 +851,8 @@ void transitiningActionChanged(EventArgs e)
     if (motorStartTime == 0)
       motorStartTime = millis();
 
+    if (!motorState)
+      moveOn();
     DBGLN("Entering Transition State");
     lcdShowStatus(F("Transition State"), F(""));
     break;

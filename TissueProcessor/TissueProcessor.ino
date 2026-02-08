@@ -624,7 +624,8 @@ bool downPredicate(id_t id)
 {
   if (!bottomLimit.isActive() || topLimit.isActive())
   {
-    DBGLN("Eror");
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    fsm.begin(S_ERROR);
   }
   if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {

@@ -127,12 +127,17 @@ bool firstCycle11 = false; // First cycle completed on 11th tank
 bool firstCycle12 = false; // First cycle completed on 12th tank
 bool holdHandled = false;  // If we processed the button
 bool tankChanged = false;
+bool motorState = false; // true = ON
+bool vibState = false;
+bool heater1State = false;
+bool heater2State = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 // Add these variables to your global program variables
 
 void readTankSelector()
 {
+  return;
   uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
@@ -205,25 +210,54 @@ DebouncedSensor wax1Ready = {SENSOR_WAX1, 0};
 DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 
 // Motor control helpers
-void vibOn()
-{
-  digitalWrite(VIB_PIN, HIGH);
-  DBGLN("Vibrating on");
-}
-void vibOff()
-{
-  digitalWrite(VIB_PIN, LOW);
-  DBGLN("Vibrating off");
-}
 void moveOn()
 {
   digitalWrite(MOVE_PIN, HIGH);
+  motorState = true;
   DBGLN("Moving on");
 }
 void moveOff()
 {
   digitalWrite(MOVE_PIN, LOW);
+  motorState = false;
   DBGLN("Moving off");
+}
+void vibOn()
+{
+  digitalWrite(VIB_PIN, HIGH);
+  vibState = true;
+  DBGLN("Vibrating on");
+}
+void vibOff()
+{
+  digitalWrite(VIB_PIN, LOW);
+  vibState = false;
+  DBGLN("Vibrating off");
+}
+
+void heaterOn1()
+{
+  digitalWrite(HEATER1_PIN, HIGH);
+  heater1State = true;
+  DBGLN("Start First Heater");
+}
+void heaterOn2()
+{
+  digitalWrite(HEATER2_PIN, HIGH);
+  heater2State = true;
+  DBGLN("Start Second Heater");
+}
+void heaterOff1()
+{
+  digitalWrite(HEATER1_PIN, LOW);
+  heater1State = false;
+  DBGLN("Stop First Heater");
+}
+void heaterOff2()
+{
+  digitalWrite(HEATER2_PIN, LOW);
+  heater2State = false;
+  DBGLN("Stop Second Heater");
 }
 
 // Helper for F() strings
@@ -547,7 +581,7 @@ void startingActionChanged(EventArgs e)
 
 void loweringProcess(id_t id)
 {
-  if (!digitalRead(MOVE_PIN))
+  if (!motorState)
     moveOn();
 
   // check mechanical timeout
@@ -613,7 +647,7 @@ void downProcess(id_t id)
 {
   if (lastStableTank == TANK_12 && finished)
   {
-    if (digitalRead(VIB_PIN))
+    if (vibState)
     {
       vibOff();
       lcdShowStatus(F("Finished"), F("Press Run..."));
@@ -624,19 +658,16 @@ void downProcess(id_t id)
     return;
   }
 
-  if (!digitalRead(VIB_PIN))
+  if (!vibState)
     vibOn();
 
-  if ((lastStableTank >= TANK_10 || lastStableTank == TANK_11 || lastStableTank == TANK_12) && !digitalRead(HEATER1_PIN))
+  if ((lastStableTank >= TANK_10 || lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater1State)
   {
-    digitalWrite(HEATER1_PIN, HIGH);
-    DBGLN("Start First Heater");
+    heaterOn1();
   }
-  if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !digitalRead(HEATER2_PIN))
-  {
-    digitalWrite(HEATER2_PIN, HIGH);
-    DBGLN("Start Second Heater");
-  }
+  if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater2State)
+    heaterOn2();
+
   // Print remaining time on lcd screen.
   printRemainingTimeForTank(lastStableTank);
   return;
@@ -694,7 +725,7 @@ bool checkingPredicate(id_t id)
     return false;
   }
 
-  if (digitalRead(VIB_PIN)) // If previous conditions aren't true, will stop vibrating in order to raise..
+  if (vibState) // If previous conditions aren't true, will stop vibrating in order to raise..
     vibOff();
 
   return true;
@@ -715,7 +746,7 @@ void checkingActionChanged(EventArgs e)
 
 void upProcess(id_t id)
 {
-  if (inspection && !digitalRead(MOVE_PIN))
+  if (inspection && !motorState)
   {
     moveOff();
     motorStartTime = 0;
@@ -753,7 +784,7 @@ void upActionChanged(EventArgs e)
 
 void raisingProcess(id_t id)
 {
-  if (!digitalRead(MOVE_PIN))
+  if (!motorState)
     moveOn();
 }
 bool raisingPredicate(id_t id)
@@ -800,7 +831,7 @@ void raisingActionChanged(EventArgs e)
 
 void transitiningProcess(id_t id)
 {
-  if (!digitalRead(MOVE_PIN))
+  if (!motorState)
     moveOn();
 }
 bool transitiningPredicate(id_t id)
@@ -853,8 +884,8 @@ void errorActionChanged(EventArgs e)
     // KILL EVERYTHING
     moveOff();
     vibOff();
-    digitalWrite(HEATER1_PIN, LOW);
-    digitalWrite(HEATER2_PIN, LOW);
+    heaterOff1();
+    heaterOff2();
 
     lcdShowStatus(F("SYSTEM HALTED"), F("Check Sensors"));
     DBGLN("!!! SAFETY SHUTDOWN !!!");

@@ -577,6 +577,11 @@ void startingActionChanged(EventArgs e)
 
 bool loweringPredicate(id_t id)
 {
+  if (topLimit.isActive() && bottomLimit.isActive())
+  {
+    fsm.begin(S_ERROR);
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+  }
   // if bottom sensor active -> true, so move to DOWN
   if (bottomLimit.isActive() && !topLimit.isActive())
   {
@@ -778,6 +783,11 @@ void upActionChanged(EventArgs e)
 
 bool raisingPredicate(id_t id)
 {
+  if (topLimit.isActive() && bottomLimit.isActive())
+  {
+    fsm.begin(S_ERROR);
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+  }
   // if top sensor active -> true to move to TRANSITION
   if (topLimit.isActive() && !bottomLimit.isActive())
   {
@@ -874,7 +884,6 @@ void errorActionChanged(EventArgs e)
     heaterOff1();
     heaterOff2();
 
-    lcdShowStatus(F("SYSTEM HALTED"), F("Check Sensors"));
     DBGLN("!!! SAFETY SHUTDOWN !!!");
   }
 }

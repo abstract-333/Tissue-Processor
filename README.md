@@ -11,5 +11,7 @@ This project provides a reliable control logic for histology equipment. By utili
 - [Wire](https://github.com/arduino/ArduinoCore-avr/blob/master/libraries/Wire/src/Wire.h)
 - [LiquidCrystal_I2C](https://gitlab.com/tandembyte/LCD_I2C) v1.1.2
 
+#### Sketch:
+[Try Online](https://wokwi.com/projects/455347457174812673)
 
 > **Disclaimer:** This codebase is intended for research and prototyping. Verify all safety timings and thermal cutoffs before use with biological samples.

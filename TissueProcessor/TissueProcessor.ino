@@ -121,11 +121,12 @@ unsigned long pressedAt = 0;      // for press button
 uint8_t lastStableTank = 1;
 uint8_t pendingTank = 1;
 unsigned long tankStabilityTime = 0;
-bool finished = false;     // Cycle finished
-bool inspection = false;   // Inspection activated
-bool firstCycle11 = false; // First cycle completed on 11th tank
-bool firstCycle12 = false; // First cycle completed on 12th tank
-bool holdHandled = false;  // If we processed the button
+unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tank...
+bool finished = false;               // Cycle finished
+bool inspection = false;             // Inspection activated
+bool firstCycle11 = false;           // First cycle completed on 11th tank
+bool firstCycle12 = false;           // First cycle completed on 12th tank
+bool holdHandled = false;            // If we processed the button
 bool tankChanged = false;
 bool isMoving = false; // true = ON
 bool isVibrating = false;
@@ -317,11 +318,10 @@ void printTank(uint8_t tank)
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
-  static unsigned long lastUpdate = 0;
-  if (millis() - lastUpdate < ONE_MIN_MS && lastUpdate != 0)
+  if (millis() - lastPrintTimeTank < ONE_MIN_MS && lastPrintTimeTank != 0)
     return; // Only update once per ONE_MIN_MS
 
-  lastUpdate = millis();
+  lastPrintTimeTank = millis();
 
   unsigned int mins = dwellMinutes[tank];
   // 1. Safety fallback
@@ -684,6 +684,7 @@ void downActionChanged(EventArgs e)
     break;
 
   case EXIT:
+    lastPrintTimeTank = 0;
     DBGLN("Exiting down state");
     break;
   }

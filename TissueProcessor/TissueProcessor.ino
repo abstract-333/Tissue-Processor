@@ -300,6 +300,20 @@ void lcdShowStatus(const char *line1, const char *line2)
   DBGLN(line2);
 }
 
+void printTank(uint8_t tank)
+{
+  lcd.print(F("Tank: ")); // Print the label from Flash
+  lcd.print(tank);        // Print the variable directly
+
+  // Manual Padding: Clear the rest of the line (16 chars total)
+  // "Tank: " is 6 chars, lastStableTank is 1 or 2 chars.
+  int usedChars = (tank < 10) ? 7 : 8;
+  for (int i = usedChars; i < 16; i++)
+  {
+    lcd.print(F(" "));
+  }
+}
+
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
@@ -337,9 +351,10 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int displayMins = remainingTotalMins % 60;
 
   lcd.setCursor(0, 0);
-  lcdPrintPadded(F("Remaining Time:"));
+  printTank(tank);
 
   lcd.setCursor(0, 1);
+  lcd.print(F("Time "));
   lcd.print(hours);
   lcd.print(F(":"));
   if (displayMins < 10)
@@ -548,20 +563,12 @@ void startingActionChanged(EventArgs e)
   case ENTRY:
   {
     readTankSelector();
+
     lcd.setCursor(0, 0);
-    lcdPrintPadded(F("Starting...")); // Uses F() to keep text in Flash
+    printTank(lastStableTank);
 
     lcd.setCursor(0, 1);
-    lcd.print(F("Tank: "));    // Print the label from Flash
-    lcd.print(lastStableTank); // Print the variable directly
-
-    // Manual Padding: Clear the rest of the line (16 chars total)
-    // "Tank: " is 6 chars, lastStableTank is 1 or 2 chars.
-    int usedChars = (lastStableTank < 10) ? 7 : 8;
-    for (int i = usedChars; i < 16; i++)
-    {
-      lcd.print(F(" "));
-    }
+    lcdPrintPadded(F("Starting...")); // Uses F() to keep text in Flash
 
     DBG("Entering tank: ");
     DBGLN(lastStableTank);
@@ -608,7 +615,11 @@ void loweringActionChanged(EventArgs e)
       motorStartTime = millis();
 
     DBGLN("Lowering..");
-    lcdShowStatus(F("Lowering"), F(""));
+    lcd.setCursor(0, 0);
+    printTank(lastStableTank);
+
+    lcd.setCursor(0, 1);
+    lcdPrintPadded(F("Lowering..")); // Uses F() to keep text in Flash
     break;
 
   case EXIT:
@@ -645,7 +656,6 @@ void downProcess(id_t id)
       DBGLN("Finished");
       DBGLN("Press Run to continue...");
     }
-
     return;
   }
 
@@ -829,6 +839,7 @@ bool transitiningPredicate(id_t id)
     moveOff();
     motorStartTime = 0;
     DBGLN("Transition timeout -> ERROR");
+    lcdShowStatus(F("Critical Error"), F("Transition timeout"));
     fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
   }
 
@@ -931,6 +942,8 @@ void setup()
   // TODO: Handle sensors error
   lcd.init();
   lcd.backlight();
+  readTankSelector();
+
   // start FSM in IDLE
   fsm.begin(S_IDLE);
   wdt_enable(WDTO_2S);

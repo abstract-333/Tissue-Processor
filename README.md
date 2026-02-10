@@ -1,5 +1,6 @@
-# Wax Bath / Tissue Processor Controller
+![workflow status](https://github.com/abstract-333/Tissue-Processor/actions/workflows/compile.yaml/badge.svg)
 
+# Tissue Processor
 This project is an Arduino-based automation controller for a medical/laboratory tissue processor. It manages sequential movements between tanks, controls vibration and heating elements, and monitors various safety sensors using a Finite State Machine (FSM).
 
 ---

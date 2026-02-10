@@ -127,10 +127,10 @@ bool firstCycle11 = false; // First cycle completed on 11th tank
 bool firstCycle12 = false; // First cycle completed on 12th tank
 bool holdHandled = false;  // If we processed the button
 bool tankChanged = false;
-bool motorState = false; // true = ON
-bool vibState = false;
-bool heater1State = false;
-bool heater2State = false;
+bool isMoving = false; // true = ON
+bool isVibrating = false;
+bool isHeating1 = false;
+bool isHeating2 = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 // Add these variables to your global program variables
@@ -209,50 +209,50 @@ DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 void moveOn()
 {
   digitalWrite(MOVE_PIN, HIGH);
-  motorState = true;
+  isMoving = true;
   DBGLN("Moving on");
 }
 void moveOff()
 {
   digitalWrite(MOVE_PIN, LOW);
-  motorState = false;
+  isMoving = false;
   DBGLN("Moving off");
 }
 void vibOn()
 {
   digitalWrite(VIB_PIN, HIGH);
-  vibState = true;
+  isVibrating = true;
   DBGLN("Vibrating on");
 }
 void vibOff()
 {
   digitalWrite(VIB_PIN, LOW);
-  vibState = false;
+  isVibrating = false;
   DBGLN("Vibrating off");
 }
 
 void heaterOn1()
 {
   digitalWrite(HEATER1_PIN, HIGH);
-  heater1State = true;
+  isHeating1 = true;
   DBGLN("Start First Heater");
 }
 void heaterOn2()
 {
   digitalWrite(HEATER2_PIN, HIGH);
-  heater2State = true;
+  isHeating2 = true;
   DBGLN("Start Second Heater");
 }
 void heaterOff1()
 {
   digitalWrite(HEATER1_PIN, LOW);
-  heater1State = false;
+  isHeating1 = false;
   DBGLN("Stop First Heater");
 }
 void heaterOff2()
 {
   digitalWrite(HEATER2_PIN, LOW);
-  heater2State = false;
+  isHeating2 = false;
   DBGLN("Stop Second Heater");
 }
 
@@ -607,12 +607,11 @@ void loweringActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
-    if (!motorState)
+    if (!isMoving)
+    {
       moveOn();
-
-    // check mechanical timeout
-    if (motorStartTime == 0)
       motorStartTime = millis();
+    }
 
     DBGLN("Lowering..");
     lcd.setCursor(0, 0);
@@ -635,6 +634,7 @@ bool downPredicate(id_t id)
     lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
     fsm.begin(S_ERROR);
   }
+
   if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     vibOff();
@@ -649,7 +649,7 @@ void downProcess(id_t id)
 {
   if (lastStableTank == TANK_12 && finished)
   {
-    if (vibState)
+    if (isVibrating)
     {
       vibOff();
       lcdShowStatus(F("Finished"), F("Press Run..."));
@@ -659,13 +659,13 @@ void downProcess(id_t id)
     return;
   }
 
-  if (!vibState)
+  if (!isVibrating)
     vibOn();
 
-  if ((lastStableTank >= TANK_10 || lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater1State)
+  if ((lastStableTank >= TANK_10 || lastStableTank == TANK_11 || lastStableTank == TANK_12) && !isHeating1)
     heaterOn1();
 
-  if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater2State)
+  if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !isHeating2)
     heaterOn2();
 
   // Print remaining time on lcd screen.
@@ -679,9 +679,6 @@ void downActionChanged(EventArgs e)
   case ENTRY:
     if (startTimeTank == 0)
       startTimeTank = millis();
-
-    if (!vibState)
-      vibOn();
 
     DBGLN("Enter down state");
     break;
@@ -729,7 +726,7 @@ bool checkingPredicate(id_t id)
     return false;
   }
 
-  if (vibState) // If previous conditions aren't true, will stop vibrating in order to raise..
+  if (isVibrating) // If previous conditions aren't true, will stop vibrating in order to raise..
     vibOff();
 
   return true;
@@ -750,7 +747,7 @@ void checkingActionChanged(EventArgs e)
 
 void upProcess(id_t id)
 {
-  if (inspection && motorState)
+  if (inspection && isMoving)
   {
     moveOff();
     motorStartTime = 0;
@@ -814,11 +811,11 @@ void raisingActionChanged(EventArgs e)
   case ENTRY:
     DBGLN("Raising..");
     // check mechanical timeout
-    if (motorStartTime == 0)
-      motorStartTime = millis();
-
-    if (!motorState)
+    if (!isMoving)
+    {
       moveOn();
+      motorStartTime = millis();
+    }
 
     lcd.setCursor(0, 0);
     printTank(lastStableTank);
@@ -846,7 +843,7 @@ bool transitiningPredicate(id_t id)
     lcdShowStatus(F("Critical Error"), F("Top sensor"));
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
-  if (motorStartTime != 0 && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
+  if (isMoving && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
   {
     // timeout -> error
     moveOff();
@@ -869,11 +866,12 @@ void transitiningActionChanged(EventArgs e)
   {
   case ENTRY:
     // check mechanical timeout
-    if (motorStartTime == 0)
-      motorStartTime = millis();
-
-    if (!motorState)
+    if (!isMoving)
+    {
       moveOn();
+      motorStartTime = millis();
+    }
+
     DBGLN("Entering Transition State");
     lcdShowStatus(F("Transition State"), F(""));
     break;

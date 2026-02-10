@@ -663,9 +663,8 @@ void downProcess(id_t id)
     vibOn();
 
   if ((lastStableTank >= TANK_10 || lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater1State)
-  {
     heaterOn1();
-  }
+
   if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !heater2State)
     heaterOn2();
 
@@ -680,6 +679,10 @@ void downActionChanged(EventArgs e)
   case ENTRY:
     if (startTimeTank == 0)
       startTimeTank = millis();
+
+    if (!vibState)
+      vibOn();
+
     DBGLN("Enter down state");
     break;
 
@@ -747,7 +750,7 @@ void checkingActionChanged(EventArgs e)
 
 void upProcess(id_t id)
 {
-  if (inspection && !motorState)
+  if (inspection && motorState)
   {
     moveOff();
     motorStartTime = 0;
@@ -816,12 +819,22 @@ void raisingActionChanged(EventArgs e)
 
     if (!motorState)
       moveOn();
-    lcdShowStatus(F("Raising"), F(""));
+
+    lcd.setCursor(0, 0);
+    printTank(lastStableTank);
+    lcd.setCursor(0, 1);
+    lcdPrintPadded(F("Raising"));
+
     break;
 
   case EXIT:
+
     DBGLN("Exit Raising state");
-    lcdShowStatus(F("Reached top"), F(""));
+    lcd.setCursor(0, 0);
+    printTank(lastStableTank);
+    lcd.setCursor(0, 1);
+    lcdPrintPadded(F("Reached top"));
+
     break;
   }
 }

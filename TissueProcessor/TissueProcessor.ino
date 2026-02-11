@@ -152,7 +152,7 @@ void readTankSelector()
     tankChanged = false;
     return;
   }
-  if (tankStabilityTime != 0 && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+  if (!tankChanged && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
   {
     lastStableTank = pendingTank;
     tankStabilityTime = 0;
@@ -519,6 +519,11 @@ void idleActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
+    moveOff();
+    vibOff();
+    heaterOff1();
+    heaterOff2();
+
     readTankSelector();
     DBGLN("Enter idle");
     lcdShowStatus(F("Status: Idle"), F("Press Start"));
@@ -547,7 +552,7 @@ bool startingPredicate(id_t id)
   }
   if (lastStableTank == TANK_12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
   {
-    lcdShowStatus(F("Critical Error"), F("heater1 or sensor1"));
+    lcdShowStatus(F("Critical Error"), F("heater or sensor"));
     DBGLN("Critical error container 12 with no sensor 2 activated");
     fsm.begin(S_ERROR);
   }
@@ -909,7 +914,7 @@ void onActionChanged(EventArgs e)
 }
 // Setup and loop
 void handleSensorsFailure()
-{
+{ // TODO: Handle sensors' errors..
   bool topSensor = topLimit.isActive();
   bool bottomSensor = bottomLimit.isActive();
   bool heatSensor_1 = wax1Ready.isActive();
@@ -951,7 +956,6 @@ void setup()
 #endif
   setupPins();
   Wire.begin();
-  // TODO: Handle sensors error
   lcd.init();
   lcd.backlight();
   readTankSelector();

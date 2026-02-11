@@ -132,6 +132,7 @@ bool isMoving = false; // true = ON
 bool isVibrating = false;
 bool isHeating1 = false;
 bool isHeating2 = false;
+bool tankException = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 // Add these variables to your global program variables
@@ -144,7 +145,12 @@ void readTankSelector()
     uint8_t v = (digitalRead(PIN_ID_BITS[i]) == HIGH) ? 1 : 0;
     currentRead |= (v << i);
   }
-
+  if (currentRead < 1 || currentRead > 12)
+  {
+    tankException = true;
+    DBGLN("Wrong Tank");
+    return;
+  }
   if (currentRead != pendingTank)
   {
     pendingTank = currentRead;
@@ -255,6 +261,14 @@ void heaterOff2()
   digitalWrite(HEATER2_PIN, LOW);
   isHeating2 = false;
   DBGLN("Stop Second Heater");
+}
+
+void outputsKill()
+{
+  moveOff();
+  vibOff();
+  heaterOff1();
+  heaterOff2();
 }
 
 // Helper for F() strings
@@ -519,10 +533,7 @@ void idleActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
-    moveOff();
-    vibOff();
-    heaterOff1();
-    heaterOff2();
+    outputsKill();
 
     readTankSelector();
     DBGLN("Enter idle");
@@ -894,10 +905,7 @@ void errorActionChanged(EventArgs e)
   if (e.action == ENTRY)
   {
     // KILL EVERYTHING
-    moveOff();
-    vibOff();
-    heaterOff1();
-    heaterOff2();
+    outputsKill();
 
     DBGLN("!!! SAFETY SHUTDOWN !!!");
   }
@@ -947,6 +955,21 @@ void setupPins()
     pinMode(PIN_ID_BITS[i], INPUT);
 }
 
+void safetyCheck()
+{
+  // FAIL-SAFE: If both sensors are triggered, something is physically wrong (wiring fault)
+  if (topLimit.isActive() && bottomLimit.isActive())
+  {
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    fsm.begin(S_ERROR);
+  }
+  if (tankException)
+  {
+    lcdShowStatus(F("ERROR"), F("Tank read"));
+    fsm.begin(S_ERROR);
+  }
+}
+
 void setup()
 {
 #ifdef DEBUG
@@ -958,8 +981,8 @@ void setup()
   Wire.begin();
   lcd.init();
   lcd.backlight();
-  readTankSelector();
 
+  readTankSelector();
   // start FSM in IDLE
   fsm.begin(S_IDLE);
   wdt_enable(WDTO_2S);
@@ -975,17 +998,8 @@ void loop()
   wax1Ready.update();
   wax2Ready.update();
 
-  // FAIL-SAFE: If both sensors are triggered, something is physically wrong (wiring fault)
-  if (topLimit.isActive() && bottomLimit.isActive())
-  {
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
-    fsm.begin(S_ERROR);
-  }
-  if (lastStableTank > 12 || lastStableTank < 1)
-  {
-    lcdShowStatus(F("ERROR"), F("Tank read"));
-    fsm.begin(S_ERROR);
-  }
+  safetyCheck();
+
   // Execute FSM regularly
   fsm.execute();
 }

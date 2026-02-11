@@ -82,3 +82,9 @@ To enable debugging mode, uncomment this line at the top of the code:
 3. Start: Hold the D2 button for 2 seconds.
 4. Inspection: During the "DOWN" phase, hold the button for 2 seconds to trigger an early raise.
 5. Error: If "MOTOR OVER TIME" or sensor errors appear, clear the obstruction and reset the Arduino.
+
+
+## Sketch:
+[Try Online](https://wokwi.com/projects/455347457174812673)
+
+> **Disclaimer:** This codebase is intended for research and prototyping. Verify all safety timings and thermal cutoffs before use with biological samples.

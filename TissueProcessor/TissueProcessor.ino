@@ -81,7 +81,7 @@ const unsigned long MOVE_TIMEOUT_MS = 10UL * 1000UL;   // 10 seconds - motion sa
 const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
 const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
 const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 100UL;    // ms
+const unsigned long TANK_STABILITY_THRESHOLD = 200UL;    // ms
 const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion safety timeout
 
 #endif
@@ -128,16 +128,15 @@ bool firstCycle11 = false;           // First cycle completed on 11th tank
 bool firstCycle12 = false;           // First cycle completed on 12th tank
 bool holdHandled = false;            // If we processed the button
 bool tankChanged = false;
-bool isMoving = false; // true = ON
-bool isVibrating = false;
-bool isHeating1 = false;
-bool isHeating2 = false;
+bool isMoving = false;    // true = ON
+bool isVibrating = false; // true = ON
+bool isHeating1 = false;  // true = ON
+bool isHeating2 = false;  // true = ON
 bool tankException = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
-// Add these variables to your global program variables
 
-void readTankSelector()
+void readTankID()
 {
   uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
@@ -148,7 +147,8 @@ void readTankSelector()
   if (currentRead < 1 || currentRead > 12)
   {
     tankException = true;
-    DBGLN("Wrong Tank");
+    DBGLN("Wrong Tank ID");
+    DBGLN(currentRead);
     return;
   }
   if (currentRead != pendingTank)
@@ -158,7 +158,7 @@ void readTankSelector()
     tankChanged = false;
     return;
   }
-  if (!tankChanged && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+  if (lastStableTank != pendingTank && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
   {
     lastStableTank = pendingTank;
     tankStabilityTime = 0;
@@ -535,7 +535,7 @@ void idleActionChanged(EventArgs e)
   case ENTRY:
     outputsKill();
 
-    readTankSelector();
+    readTankID();
     DBGLN("Enter idle");
     lcdShowStatus(F("Status: Idle"), F("Press Start"));
     finished = false;
@@ -578,7 +578,7 @@ void startingActionChanged(EventArgs e)
   {
   case ENTRY:
   {
-    readTankSelector();
+    readTankID();
 
     lcd.setCursor(0, 0);
     printTank(lastStableTank);
@@ -591,6 +591,7 @@ void startingActionChanged(EventArgs e)
     break;
   }
   case EXIT:
+    tankChanged = false;
     break;
   }
 }
@@ -870,12 +871,9 @@ bool transitiningPredicate(id_t id)
     fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
   }
 
-  readTankSelector();
+  readTankID();
 
-  if (tankChanged)
-    return true;
-
-  return false;
+  return tankChanged;
 }
 void transitiningActionChanged(EventArgs e)
 {
@@ -915,8 +913,6 @@ void onActionChanged(EventArgs e)
 {
   if (e.action == EXIT)
     startTimeTank = 0;
-  readTankSelector();
-  tankChanged = false;
 
   return;
 }
@@ -982,7 +978,7 @@ void setup()
   lcd.init();
   lcd.backlight();
 
-  readTankSelector();
+  readTankID();
   // start FSM in IDLE
   fsm.begin(S_IDLE);
   wdt_enable(WDTO_2S);

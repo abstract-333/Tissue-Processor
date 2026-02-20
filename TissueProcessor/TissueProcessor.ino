@@ -274,6 +274,7 @@ void outputsKill()
 // Helper for F() strings
 void lcdPrintPadded(const __FlashStringHelper *text)
 {
+  DBGLN(text);
   lcd.print(text);
   // strlen_P is the version of strlen that reads from Flash
   int len = strlen_P((PGM_P)text);
@@ -286,6 +287,7 @@ void lcdPrintPadded(const __FlashStringHelper *text)
 // Helper for RAM strings
 void lcdPrintPadded(const char *text)
 {
+  DBGLN(text);
   lcd.print(text);
   int len = strlen(text);
   for (int i = len; i < 16; i++)
@@ -300,8 +302,6 @@ void lcdShowStatus(const __FlashStringHelper *line1, const __FlashStringHelper *
   lcdPrintPadded(line1);
   lcd.setCursor(0, 1);
   lcdPrintPadded(line2);
-  DBGLN(line1);
-  DBGLN(line2);
 }
 
 // Version for RAM-based strings (like buffers or variables)
@@ -311,11 +311,9 @@ void lcdShowStatus(const char *line1, const char *line2)
   lcdPrintPadded(line1);
   lcd.setCursor(0, 1);
   lcdPrintPadded(line2);
-  DBGLN(line1);
-  DBGLN(line2);
 }
 
-void printTank(uint8_t tank)
+void LcdShowTank(uint8_t tank)
 {
   lcd.print(F("Tank: ")); // Print the label from Flash
   lcd.print(tank);        // Print the variable directly
@@ -327,6 +325,17 @@ void printTank(uint8_t tank)
   {
     lcd.print(F(" "));
   }
+  DBG("Tank: ");
+  DBGLN(tank);
+}
+
+void lcdShowStatusTank(const __FlashStringHelper *text)
+{
+  lcd.setCursor(0, 0);
+  LcdShowTank(lastStableTank);
+
+  lcd.setCursor(0, 1);
+  lcdPrintPadded(text);
 }
 
 // Print remaining time for current tank
@@ -365,7 +374,7 @@ void printRemainingTimeForTank(uint8_t tank)
   unsigned int displayMins = remainingTotalMins % 60;
 
   lcd.setCursor(0, 0);
-  printTank(tank);
+  LcdShowTank(tank);
 
   lcd.setCursor(0, 1);
   lcd.print(F("Time "));
@@ -558,12 +567,12 @@ bool startingPredicate(id_t id)
 
   if (lastStableTank == TANK_11 && !wax1Ready.isActive())
   {
-    lcdShowStatus(F("Critical Error"), F("heater1 or sensor1"));
+    lcdShowStatus(F("Critical Error"), F("H1 or S1"));
     fsm.begin(S_ERROR);
   }
   if (lastStableTank == TANK_12 && (!wax1Ready.isActive() || !wax2Ready.isActive()))
   {
-    lcdShowStatus(F("Critical Error"), F("heater or sensor"));
+    lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
     DBGLN("Critical error container 12 with no sensor 2 activated");
     fsm.begin(S_ERROR);
   }
@@ -580,11 +589,7 @@ void startingActionChanged(EventArgs e)
   {
     readTankID();
 
-    lcd.setCursor(0, 0);
-    printTank(lastStableTank);
-
-    lcd.setCursor(0, 1);
-    lcdPrintPadded(F("Starting...")); // Uses F() to keep text in Flash
+    lcdShowStatusTank(F("Starting...")); // Uses F() to keep text in Flash
 
     DBG("Entering tank: ");
     DBGLN(lastStableTank);
@@ -629,13 +634,7 @@ void loweringActionChanged(EventArgs e)
       moveOn();
       motorStartTime = millis();
     }
-
-    DBGLN("Lowering..");
-    lcd.setCursor(0, 0);
-    printTank(lastStableTank);
-
-    lcd.setCursor(0, 1);
-    lcdPrintPadded(F("Lowering..")); // Uses F() to keep text in Flash
+    lcdShowStatusTank(F("Lowering..")); // Uses F() to keep text in Flash
     break;
 
   case EXIT:
@@ -648,7 +647,7 @@ bool downPredicate(id_t id)
 {
   if (!bottomLimit.isActive() || topLimit.isActive())
   {
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensor"));
     fsm.begin(S_ERROR);
   }
 
@@ -792,11 +791,11 @@ void upActionChanged(EventArgs e)
   switch (e.action)
   {
   case ENTRY:
-    DBGLN("UP state");
+    DBGLN("Top state");
     break;
 
   case EXIT:
-    DBGLN("Exiting UP state");
+    DBGLN("Exiting Top state");
     break;
   }
 }
@@ -835,20 +834,15 @@ void raisingActionChanged(EventArgs e)
       motorStartTime = millis();
     }
 
-    lcd.setCursor(0, 0);
-    printTank(lastStableTank);
-    lcd.setCursor(0, 1);
-    lcdPrintPadded(F("Raising"));
+    lcdShowStatusTank(F("Raising"));
 
     break;
 
   case EXIT:
 
     DBGLN("Exit Raising state");
-    lcd.setCursor(0, 0);
-    printTank(lastStableTank);
-    lcd.setCursor(0, 1);
-    lcdPrintPadded(F("Reached top"));
+
+    lcdShowStatusTank(F("Reached top"));
 
     break;
   }

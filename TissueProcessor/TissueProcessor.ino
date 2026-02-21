@@ -775,7 +775,14 @@ void downActionChanged(EventArgs e)
 
 bool checkingPredicate(id_t id)
 {
-  // 1. Check Wax Readiness
+  // 1. Check Multi-cycle Logic (2-hour tanks)
+  if (currentCycle < getCycles(lastStableTank))
+  {
+    currentCycle++;
+    return false; // Stay in DOWN state
+  }
+
+  // 2. Check Wax Readiness
   bool waxReady = true;
   uint8_t s = getNextRequiredSensor(lastStableTank);
   if ((s & 1) && !wax1Ready.isActive())
@@ -790,12 +797,6 @@ bool checkingPredicate(id_t id)
   }
 
   waitingWaxMelt = false;
-  // 2. Check Multi-cycle Logic (2-hour tanks)
-  if (currentCycle < getCycles(lastStableTank))
-  {
-    currentCycle++;
-    return false; // Stay in DOWN state
-  }
 
   // 3. Final Tank Check
   if (lastStableTank == TANK_12)

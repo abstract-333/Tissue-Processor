@@ -125,14 +125,16 @@ unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tan
 bool finished = false;               // Cycle finished
 bool inspection = false;             // Inspection activated
 bool firstCycle11 = false;           // First cycle completed on 11th tank
-bool firstCycle12 = false;           // First cycle completed on 12th tank
-bool holdHandled = false;            // If we processed the button
+// TODO: Handle first cycle and second cycle, by making second variable...
+bool firstCycle12 = false; // First cycle completed on 12th tank
+bool holdHandled = false;  // If we processed the button
 bool tankChanged = false;
 bool isMoving = false;    // true = ON
 bool isVibrating = false; // true = ON
 bool isHeating1 = false;  // true = ON
 bool isHeating2 = false;  // true = ON
 bool tankException = false;
+bool waitingWaxMelt = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 
@@ -352,9 +354,9 @@ void printRemainingTimeForTank(uint8_t tank)
     mins = MIN_DWELL_MIN;
 
   // 2. Adjust for specific tank logic
-  if (tank == 11 && firstCycle11)
+  if (tank == TANK_11 && firstCycle11)
     mins -= MIN_DWELL_MIN;
-  if (tank == 12 && firstCycle12)
+  if (tank == TANK_12 && firstCycle12)
     mins -= MIN_DWELL_MIN;
 
   // 3. Calculate Remaining Time
@@ -659,6 +661,19 @@ bool downPredicate(id_t id)
     lcdShowStatus(F("Button Pressed"), F("Raising..."));
     return false;
   }
+  if (waitingWaxMelt)
+  {
+    if (lastStableTank == TANK_10 && wax1Ready.isActive())
+    {
+      waitingWaxMelt = false;
+      return false;
+    }
+    if (lastStableTank == TANK_11 && wax2Ready.isActive()) // TODO: Ask whether wax1 is for 11th tank or both one.
+    {
+      waitingWaxMelt = false;
+      return false;
+    }
+  }
   return true;
 }
 void downProcess(id_t id)
@@ -684,8 +699,12 @@ void downProcess(id_t id)
   if ((lastStableTank == TANK_11 || lastStableTank == TANK_12) && !isHeating2)
     heaterOn2();
 
+  if (waitingWaxMelt)
+    return;
+
   // Print remaining time on lcd screen.
   printRemainingTimeForTank(lastStableTank);
+
   return;
 }
 void downActionChanged(EventArgs e)
@@ -695,6 +714,11 @@ void downActionChanged(EventArgs e)
   case ENTRY:
     if (startTimeTank == 0)
       startTimeTank = millis();
+
+    if (waitingWaxMelt)
+    {
+      lcdShowStatusTank(F("Waiting Wax"));
+    }
 
     DBGLN("Enter down state");
     break;
@@ -728,14 +752,27 @@ bool checkingPredicate(id_t id)
 {
   if (lastStableTank == TANK_10 && !wax1Ready.isActive())
   {
-    DBGLN("Returning to down state because wax sensor is not ");
-    lcdShowStatus(F("Waiting for"), F("Wax 1 Heat..."));
+    DBG("Tank: ");
+    DBGLN(TANK_10);
+    DBGLN("Waiting for wax to melt");
+    waitingWaxMelt = true;
     return false;
   }
-  if (lastStableTank == TANK_11 && (!wax2Ready.isActive() || !firstCycle11))
+  if (lastStableTank == TANK_11)
   {
-    DBGLN("Moving to second hour");
-    return false;
+    if (!firstCycle11)
+    {
+      DBGLN("Moving to second hour");
+      return false;
+    }
+    if (!wax2Ready.isActive())
+    {
+      DBG("Tank: ");
+      DBGLN(TANK_11);
+      DBGLN("Waiting for wax to melt");
+      waitingWaxMelt = true;
+      return false;
+    }
   }
   if (lastStableTank == TANK_12)
   {
@@ -947,6 +984,9 @@ void setupPins()
 
 void safetyCheck()
 {
+  if (fsm.id == S_ERROR)
+    return;
+
   // FAIL-SAFE: If both sensors are triggered, something is physically wrong (wiring fault)
   if (topLimit.isActive() && bottomLimit.isActive())
   {
@@ -981,7 +1021,6 @@ void setup()
 void loop()
 {
   wdt_reset();
-
   // Update all sensor states first
   topLimit.update();
   bottomLimit.update();

@@ -218,7 +218,6 @@ uint8_t safeNumber(uint8_t number)
 {
   if (number > 12 || number < 1)
     return 1;
-
   return number;
 }
 // Accessors for PROGMEM table
@@ -710,16 +709,14 @@ bool downPredicate(id_t id)
   if (waitingWaxMelt)
   {
     uint8_t s = getNextRequiredSensor(lastStableTank);
-    if ((s & 2) && wax2Ready.isActive())
-    {
-      waitingWaxMelt = false;
-      return false;
-    }
-    if ((s & 1) && wax1Ready.isActive())
-    {
-      waitingWaxMelt = false;
-      return false;
-    }
+    if ((s & 1) && !wax1Ready.isActive())
+      return true;
+
+    if ((s & 2) && !wax2Ready.isActive())
+      return true;
+
+    waitingWaxMelt = false;
+    return false;
   }
   return true;
 }

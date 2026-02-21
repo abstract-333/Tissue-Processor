@@ -91,27 +91,6 @@ const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seco
 const unsigned long DEBOUNCE_DELAY_MS = 20;               // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
 
-// Constants derived from dwellMinutes
-
-// Per-tank dwell times in minutes (index 1..12)
-#ifdef TEST
-const unsigned int dwellMinutes[13] = {
-    0,                         // 0 unused
-    1, 1, 1, 1, 1, 1, 1, 1, 1, // containers 1..9
-    1,                         // 10
-    2,                         // 11
-    2                          // 12
-};
-#else
-const unsigned int dwellMinutes[13] = {
-    0,
-    60, 60, 60, 60, 60, 60, 60, 60, 60, // containers 1..9
-    60,                                 // 10
-    120,                                // 11
-    120                                 // 12
-};
-#endif
-
 // Program variables
 unsigned long startTimeTank = 0;  // for time in tank
 unsigned long motorStartTime = 0; // for mechanical timeout
@@ -123,8 +102,7 @@ unsigned long tankStabilityTime = 0;
 unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tank...
 bool finished = false;               // Cycle finished
 bool inspection = false;             // Inspection activated
-// TODO: Handle first cycle and second cycle, by making second variable...
-bool holdHandled = false; // If we processed the button
+bool holdHandled = false;            // If we processed the button
 bool tankChanged = false;
 bool isMoving = false;    // true = ON
 bool isVibrating = false; // true = ON
@@ -134,7 +112,6 @@ bool tankException = false;
 bool waitingWaxMelt = false;
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
-
 void readTankID()
 {
   uint8_t currentRead = 0;

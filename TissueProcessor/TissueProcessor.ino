@@ -710,13 +710,12 @@ bool downPredicate(id_t id)
   if (waitingWaxMelt)
   {
     uint8_t s = getNextRequiredSensor(lastStableTank);
-    if ((s & 1) && wax1Ready.isActive())
+    if ((s & 2) && wax2Ready.isActive())
     {
       waitingWaxMelt = false;
       return false;
     }
-
-    if ((s & 2) && wax2Ready.isActive())
+    if ((s & 1) && wax1Ready.isActive())
     {
       waitingWaxMelt = false;
       return false;
@@ -968,8 +967,10 @@ void errorActionChanged(EventArgs e)
 void onActionChanged(EventArgs e)
 {
   if (e.action == EXIT)
+  {
     startTimeTank = 0;
-
+    vibOff();
+  }
   return;
 }
 // Setup and loop

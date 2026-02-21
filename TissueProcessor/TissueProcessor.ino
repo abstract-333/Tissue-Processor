@@ -46,6 +46,7 @@
 #include <FiniteState.h> // 1.6.0
 #include <Wire.h>
 #include <avr/wdt.h>
+#include <avr/pgmspace.h>
 #include <LiquidCrystal_I2C.h> // 1.1.2
 
 // ========================= PIN MAP (as provided) =========================
@@ -192,12 +193,12 @@ struct TankProfile
 {
   unsigned int dwellMinutes;
   uint8_t requiredHeater; // 0: None, 1: Heater1, 2: Heater2, 3: Both
-  uint8_t requiredSensor; // 0: None, 1: Wax1, 2: Wax2, 3: Both
+  uint8_t requiredWax;    // 0: None, 1: Wax1, 2: Wax2, 3: Both
   uint8_t cycles;         // 1: Normal, 2: Double dwell (for tanks 11, 12)
-};
+} __attribute__((packed));
 
 // Now define your 12 tanks in one clean table
-const TankProfile tanks[13] = {
+const TankProfile tanks[13] PROGMEM = {
     {0, 0, 0, 1},  // Tank 0 (unused)
     {60, 0, 0, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
     {60, 0, 0, 1},
@@ -208,10 +209,39 @@ const TankProfile tanks[13] = {
     {60, 0, 0, 1},
     {60, 0, 0, 1},
     {60, 0, 0, 1},
-    {60, 1, 1, 1},  // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
+    {60, 1, 0, 1},  // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
     {120, 3, 1, 2}, // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
     {120, 3, 3, 2}  // Tank 12: Both Heaters, Both Sensors, 2 cycles
 };
+
+uint8_t safeNumber(uint8_t number)
+{
+  if (number > 12 || number < 1)
+    return 1;
+
+  return number;
+}
+// Accessors for PROGMEM table
+static inline uint16_t getDwellMinutes(uint8_t idx)
+{
+  return (uint16_t)pgm_read_word(&(tanks[idx].dwellMinutes));
+}
+static inline uint8_t getRequiredHeater(uint8_t idx)
+{
+  return (uint8_t)pgm_read_byte(&(tanks[idx].requiredHeater));
+}
+static inline uint8_t getRequiredWaxSensor(uint8_t idx)
+{
+  return (uint8_t)pgm_read_byte(&(tanks[idx].requiredWax));
+}
+static inline uint8_t getNextRequiredSensor(uint8_t idx)
+{
+  return (uint8_t)pgm_read_byte(&(tanks[safeNumber(++idx)].requiredWax));
+}
+static inline uint8_t getCycles(uint8_t idx)
+{
+  return (uint8_t)pgm_read_byte(&(tanks[idx].cycles));
+}
 
 // Motor control helpers
 void moveOn()
@@ -290,7 +320,7 @@ void heaterOff2()
 
 void manageHeaters(uint8_t tank)
 {
-  uint8_t h = tanks[tank].requiredHeater;
+  uint8_t h = getRequiredHeater(tank);
   (h & 1) ? heaterOn1() : heaterOff1();
   (h & 2) ? heaterOn2() : heaterOff2();
 }
@@ -381,7 +411,7 @@ void printRemainingTimeForTank(uint8_t tank)
 
   // 2. Get total duration from our Data Table
   // If the tank is 0 or out of bounds, use a safety fallback
-  unsigned int totalMins = (tank >= 1 && tank <= 12) ? tanks[tank].dwellMinutes : MIN_DWELL_MIN;
+  unsigned int totalMins = (tank >= 1 && tank <= 12) ? getDwellMinutes(tank) : MIN_DWELL_MIN;
 
   // 3. Calculate Elapsed and Remaining
   unsigned long totalMs = (unsigned long)totalMins * ONE_MIN_MS;
@@ -581,7 +611,7 @@ bool startingPredicate(id_t id)
     fsm.begin(S_ERROR); // Top sensor is not active -> Error
   }
   bool waxReady = true;
-  uint8_t s = tanks[lastStableTank].requiredSensor;
+  uint8_t s = getRequiredWaxSensor(lastStableTank);
   if ((s & 1) && !wax1Ready.isActive())
   {
     lcdShowStatus(F("Critical Error"), F("H1 or S1"));
@@ -679,14 +709,14 @@ bool downPredicate(id_t id)
   }
   if (waitingWaxMelt)
   {
-    uint8_t s = tanks[lastStableTank].requiredSensor;
-    if ((s & 1) && !wax1Ready.isActive())
+    uint8_t s = getNextRequiredSensor(lastStableTank);
+    if ((s & 1) && wax1Ready.isActive())
     {
       waitingWaxMelt = false;
       return false;
     }
 
-    if ((s & 2) && !wax2Ready.isActive())
+    if ((s & 2) && wax2Ready.isActive())
     {
       waitingWaxMelt = false;
       return false;
@@ -747,7 +777,7 @@ bool checkingPredicate(id_t id)
 {
   // 1. Check Wax Readiness
   bool waxReady = true;
-  uint8_t s = tanks[lastStableTank].requiredSensor;
+  uint8_t s = getNextRequiredSensor(lastStableTank);
   if ((s & 1) && !wax1Ready.isActive())
     waxReady = false;
   if ((s & 2) && !wax2Ready.isActive())
@@ -761,7 +791,7 @@ bool checkingPredicate(id_t id)
 
   waitingWaxMelt = false;
   // 2. Check Multi-cycle Logic (2-hour tanks)
-  if (currentCycle < tanks[lastStableTank].cycles)
+  if (currentCycle < getCycles(lastStableTank))
   {
     currentCycle++;
     return false; // Stay in DOWN state
@@ -953,6 +983,50 @@ void handleSensorsFailure()
   DBGLN(heatSensor_1);
   DBGLN(heatSensor_2);
 }
+// ========================= TASKS & SCHEDULER =========================
+// Tasks run from a cooperative scheduler tick
+unsigned long lastTick = 0;
+const unsigned long TICK_MS = 10UL; // 10ms tick
+bool lastLoopHealthy = false;
+
+void sensorTask()
+{
+  topLimit.update();
+  bottomLimit.update();
+  wax1Ready.update();
+  wax2Ready.update();
+}
+
+void safetyTask()
+{
+  if (fsm.id == S_ERROR)
+    return;
+
+  if (topLimit.isActive() && bottomLimit.isActive())
+  {
+    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    fsm.begin(S_ERROR);
+  }
+
+  if (tankException)
+  {
+    lcdShowStatus(F("ERROR"), F("Tank read"));
+    fsm.begin(S_ERROR);
+  }
+}
+
+void fsmTask() { fsm.execute(); }
+
+void healthTask()
+{ // run last - decide if we reset WDT
+  // simple heuristic: not in error state and at least one sensor updated recently
+  lastLoopHealthy = (fsm.id != S_ERROR);
+
+  if (lastLoopHealthy)
+    wdt_reset();
+}
+
+// ========================= SETUP & LOOP =========================
 void setupPins()
 {
   pinMode(VIB_PIN, OUTPUT);
@@ -964,65 +1038,47 @@ void setupPins()
   pinMode(HEATER2_PIN, OUTPUT);
   digitalWrite(HEATER2_PIN, LOW);
 
-  // sensor inputs - active LOW
+  // Sensor inputs - active LOW
   pinMode(SENSOR_WAX2, INPUT_PULLUP);
   pinMode(SENSOR_WAX1, INPUT_PULLUP);
   pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
   pinMode(SENSOR_TOP, INPUT_PULLUP);
-
-  pinMode(START_BUTTON, INPUT_PULLUP); // use internal pullup and interpret LOW as pressed
-
-  for (uint8_t i = 0; i < 4; ++i)
+  pinMode(START_BUTTON, INPUT_PULLUP);
+  for (uint8_t i = 0; i < 4; i++)
     pinMode(PIN_ID_BITS[i], INPUT);
-}
-
-void safetyCheck()
-{
-  if (fsm.id == S_ERROR)
-    return;
-
-  // FAIL-SAFE: If both sensors are triggered, something is physically wrong (wiring fault)
-  if (topLimit.isActive() && bottomLimit.isActive())
-  {
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
-    fsm.begin(S_ERROR);
-  }
-  if (tankException)
-  {
-    lcdShowStatus(F("ERROR"), F("Tank read"));
-    fsm.begin(S_ERROR);
-  }
 }
 
 void setup()
 {
-#ifdef DEBUG
+  // #ifdef DEBUG
   Serial.begin(115200);
   while (!Serial)
-    DBGLN("Serial debug enabled");
-#endif
+    ;
+  // #endif
   setupPins();
   Wire.begin();
   lcd.init();
   lcd.backlight();
-
   readTankID();
-  // start FSM in IDLE
   fsm.begin(S_IDLE);
   wdt_enable(WDTO_2S);
 }
 
 void loop()
 {
-  wdt_reset();
-  // Update all sensor states first
-  topLimit.update();
-  bottomLimit.update();
-  wax1Ready.update();
-  wax2Ready.update();
+  unsigned long now = millis();
+  if (now - lastTick >= TICK_MS)
+  {
 
-  safetyCheck();
+    unsigned long start = micros(); // 🔹 start timing
+    lastTick = now;
+    sensorTask();
+    safetyTask();
+    fsmTask();
+    healthTask();
 
-  // Execute FSM regularly
-  fsm.execute();
+    unsigned long duration = micros() - start; // 🔹 end timing
+    if (duration > 1000)
+      Serial.println(duration); // 🔹 print µs
+  }
 }

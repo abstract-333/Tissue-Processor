@@ -89,8 +89,6 @@ const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion 
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;       // 1 second - motor swithc saf
 const unsigned long START_BUTTON_DELAY_MS = 2UL * 1000UL; // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;               // debounce time for sensors = 20 ms
-const uint8_t TANK_10 = 10;
-const uint8_t TANK_11 = 11;
 const uint8_t TANK_12 = 12;
 
 // Constants derived from dwellMinutes

@@ -300,7 +300,7 @@ void heaterOn2()
 }
 void heaterOff1()
 {
-  if (isHeating1)
+  if (!isHeating1)
     return;
 
   digitalWrite(HEATER1_PIN, LOW);
@@ -1022,7 +1022,11 @@ void healthTask()
   lastLoopHealthy = (fsm.id != S_ERROR);
 
   if (lastLoopHealthy)
+  {
     wdt_reset();
+    pendingTank = 1;
+    lastStableTank = 1;
+  }
 }
 
 // ========================= SETUP & LOOP =========================
@@ -1071,10 +1075,11 @@ void loop()
 
     unsigned long start = micros(); // 🔹 start timing
     lastTick = now;
+
+    wdt_reset();
     sensorTask();
     safetyTask();
     fsmTask();
-    healthTask();
 
     unsigned long duration = micros() - start; // 🔹 end timing
     if (duration > 1000)

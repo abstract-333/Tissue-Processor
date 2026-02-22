@@ -804,7 +804,6 @@ bool checkingPredicate(id_t id)
   if (lastStableTank == TANK_12)
   {
     finished = true;
-    vibOff();
     return false;
   }
 

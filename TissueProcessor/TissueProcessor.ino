@@ -415,7 +415,6 @@ void printRemainingTimeForTank(uint8_t tank)
   // 3. Calculate Elapsed and Remaining
   unsigned long totalMs = (unsigned long)totalMins * ONE_MIN_MS;
   unsigned long elapsedMs = millis() - startTimeTank;
-
   // Use long to prevent underflow wrap-around errors
   long remainingMs = (long)totalMs - (long)elapsedMs;
   if (remainingMs < 0)
@@ -423,6 +422,7 @@ void printRemainingTimeForTank(uint8_t tank)
 
   // 4. Conversion
   unsigned long remainingTotalMins = remainingMs / ONE_MIN_MS;
+  unsigned int dispalySeconds = (remainingMs / 1000UL) % 60;
   unsigned int hours = remainingTotalMins / 60;
   unsigned int displayMins = remainingTotalMins % 60;
 
@@ -433,10 +433,16 @@ void printRemainingTimeForTank(uint8_t tank)
   lcd.setCursor(0, 1);
   lcd.print(F("Time "));
   lcd.print(hours);
+
   lcd.print(F(":"));
   if (displayMins < 10)
     lcd.print(F("0"));
   lcd.print(displayMins);
+
+  lcd.print(F(":"));
+  if (dispalySeconds < 10)
+    lcd.print(F("0"));
+  lcd.print(dispalySeconds);
 
   // Padding to clear old characters
   for (int i = (hours > 9 ? 9 : 8); i < 16; i++)

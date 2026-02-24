@@ -112,18 +112,22 @@ bool isHeating2 = false;  // true = ON
 bool tankException = false;
 bool waitingWaxMelt = false;
 
+// Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
+bool sensorActive(uint8_t pin)
+{
+  return digitalRead(pin) == LOW;
+}
+
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 void readTankID()
 {
   uint8_t currentRead = 0;
   for (uint8_t i = 0; i < 4; ++i)
   {
-    uint8_t v = (digitalRead(PIN_ID_BITS[i]) == HIGH) ? 1 : 0;
+    uint8_t v = sensorActive(PIN_ID_BITS[i]);
     currentRead |= (v << i);
   }
 
-  // Optional: If your hardware is "Tank 1 to 12" but the binary
-  // starts at 0, you might need: currentRead += 1;
   if (currentRead < 1 || currentRead > 12)
   {
     tankException = true;
@@ -148,12 +152,6 @@ void readTankID()
     tankChanged = true;
     DBGLN("Tank Changed & Stable");
   }
-}
-
-// Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
-bool sensorActive(uint8_t pin)
-{
-  return digitalRead(pin) == LOW;
 }
 
 struct DebouncedSensor
@@ -403,7 +401,7 @@ void LcdShowTank(uint8_t tank)
   // %-6s = "Tank: " left-aligned
   // %-2d = the tank number, padded to 2 spaces
   // The rest of the 16 characters will be filled with spaces automatically
-  snprintf(buffer, 17, "Tank: %-2d       ", tank);
+  snprintf(buffer, 17, "Tank: %-2d        ", tank);
 
   lcd.setCursor(0, 0);
   lcd.print(buffer); // One single I2C burst!
@@ -455,8 +453,7 @@ void printRemainingTimeForTank(uint8_t tank)
   // 5. LCD Update (Optimized)
   char timeBuffer[17];
   // Format: "Tank: 12  01:30:05"
-  snprintf(timeBuffer, 17, "Time: %02u:%02u:%02u",
-           tank, hours, displayMins, dispalySeconds);
+  snprintf(timeBuffer, 17, "Time: %02u:%02u:%02u", hours, displayMins, dispalySeconds);
 
   lcd.setCursor(0, 1);
   lcd.print(timeBuffer);
@@ -711,7 +708,7 @@ bool downPredicate(id_t id)
 {
   if (!bottomLimit.isActive() || topLimit.isActive())
   {
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensor"));
+    lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
     fsm.begin(S_ERROR);
   }
 
@@ -1020,7 +1017,7 @@ void safetyTask()
 
   if (topLimit.isActive() && bottomLimit.isActive())
   {
-    lcdShowStatus(F("ERROR"), F("TOP or LOW sensors"));
+    lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
     fsm.begin(S_ERROR);
   }
 
@@ -1052,7 +1049,7 @@ void setupPins()
   pinMode(SENSOR_TOP, INPUT_PULLUP);
   pinMode(START_BUTTON, INPUT_PULLUP);
   for (uint8_t i = 0; i < 4; i++)
-    pinMode(PIN_ID_BITS[i], INPUT);
+    pinMode(PIN_ID_BITS[i], INPUT_PULLUP);
 }
 
 void setup()
@@ -1086,6 +1083,7 @@ void loop()
     fsmTask();
 
     unsigned long duration = micros() - start; // 🔹 end timing
-    Serial.println(duration);                  // 🔹 print µs
+    if (duration > 1000)
+      Serial.println(duration); // 🔹 print µs
   }
 }

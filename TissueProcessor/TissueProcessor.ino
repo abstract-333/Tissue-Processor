@@ -335,18 +335,22 @@ void lcdPrintPadded(const __FlashStringHelper *text)
 { // 16 characters + 1 for the null terminator '\0'
   char lcdBuffer[17];
 
-  // Clear buffer with spaces
+  // Fill with spaces and terminate
   memset(lcdBuffer, ' ', 16);
   lcdBuffer[16] = '\0';
 
-  // Copy flash string into the start of the buffer
-  // strncpy_P is like strncpy but reads from Flash memory
-  int len = strlen_P((PGM_P)text);
+  // Safely get the flash pointer
+  PGM_P p = reinterpret_cast<PGM_P>(text);
+
+  // Measure length in Flash
+  size_t len = strlen_P(p);
   if (len > 16)
     len = 16;
-  memcpy_P(lcdBuffer, (PGM_P)text, len);
 
-  // Send the entire 16-char string in one go
+  // Copy from Flash to RAM buffer
+  memcpy_P(lcdBuffer, p, len);
+
+  // Send the clean, padded 16-char string to LCD
   lcd.print(lcdBuffer);
 
   DBGLN(text);
@@ -358,18 +362,19 @@ void lcdPrintPadded(const char *text)
   // 16 characters + 1 for the null terminator '\0'
   char lcdBuffer[17];
 
-  // Clear buffer with spaces
+  // 1. Initialize with spaces and null terminator
   memset(lcdBuffer, ' ', 16);
   lcdBuffer[16] = '\0';
 
-  // Copy flash string into the start of the buffer
-  // strncpy_P is like strncpy but reads from Flash memory
-  int len = strlen_P((PGM_P)text);
+  // 2. Use standard RAM-based string functions
+  int len = strlen(text);
   if (len > 16)
     len = 16;
-  memcpy_P(lcdBuffer, (PGM_P)text, len);
 
-  // Send the entire 16-char string in one go
+  // 3. Copy from RAM to our local buffer
+  memcpy(lcdBuffer, text, len);
+
+  // 4. Send to LCD
   lcd.print(lcdBuffer);
 
   DBGLN(text);
@@ -396,13 +401,22 @@ void LcdShowTank(uint8_t tank)
 {
   char buffer[17]; // 16 chars + null terminator
 
-  // %-6s = "Tank: " left-aligned
-  // %-2d = the tank number, padded to 2 spaces
-  // The rest of the 16 characters will be filled with spaces automatically
-  snprintf(buffer, 17, "Tank: %-2d        ", tank);
+  // 1. Fill prefix
+  memcpy(buffer, "Tank: ", 6);
 
-  lcd.setCursor(0, 0);
-  lcd.print(buffer); // One single I2C burst!
+  // 2. Handle Tank Number (01-12)
+  // If you want " 1" instead of "01", replace '0' with (tank < 10 ? ' ' : '0')
+  buffer[6] = (tank / 10 == 0) ? ' ' : ('0' + (tank / 10));
+  buffer[7] = '0' + (tank % 10);
+
+  // 3. Fill the remaining 8 spaces to clear the line
+  // Index 8 to 15 (8 characters)
+  memset(&buffer[8], ' ', 8);
+
+  // 4. Null terminator
+  buffer[16] = '\0';
+
+  lcd.print(buffer);
 
   DBG("Tank: ");
   DBGLN(tank);
@@ -417,6 +431,24 @@ void lcdShowStatusTank(const __FlashStringHelper *text)
   lcdPrintPadded(text);
 }
 
+void formatTime(char *buf, uint8_t h, uint8_t m, uint8_t s)
+{
+  // Logic: '0' + (digit) converts a number to its ASCII character
+  memcpy(buf, "Time: ", 6);
+  buf[6] = '0' + (h / 10);
+  buf[7] = '0' + (h % 10);
+  buf[8] = ':';
+  buf[9] = '0' + (m / 10);
+  buf[10] = '0' + (m % 10);
+  buf[11] = ':';
+  buf[12] = '0' + (s / 10);
+  buf[13] = '0' + (s % 10);
+
+  // Fill the rest of the 16-char LCD line
+  buf[14] = ' ';
+  buf[15] = ' ';
+  buf[16] = '\0'; // Null terminator
+}
 // Print remaining time for current tank
 void printRemainingTimeForTank(uint8_t tank)
 {
@@ -451,7 +483,7 @@ void printRemainingTimeForTank(uint8_t tank)
   // 5. LCD Update (Optimized)
   char timeBuffer[17];
   // Format: "Tank: 12  01:30:05"
-  snprintf(timeBuffer, 17, "Time: %02u:%02u:%02u", hours, displayMins, dispalySeconds);
+  formatTime(timeBuffer, hours, displayMins, dispalySeconds);
 
   lcd.setCursor(0, 1);
   lcd.print(timeBuffer);

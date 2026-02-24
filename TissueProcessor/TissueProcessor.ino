@@ -112,31 +112,15 @@ bool isHeating2 = false;  // true = ON
 bool tankException = false;
 bool waitingWaxMelt = false;
 
-// ========================= QUICK REGISTER MACROS =========================
-// Outputs (Port B)
-#define MOVE_ON() (PORTB |= (1 << 4))    // D12 HIGH
-#define MOVE_OFF() (PORTB &= ~(1 << 4))  // D12 LOW
-#define VIB_ON() (PORTB |= (1 << 3))     // D11 HIGH
-#define VIB_OFF() (PORTB &= ~(1 << 3))   // D11 LOW
-#define HEAT2_ON() (PORTB |= (1 << 2))   // D10 HIGH
-#define HEAT2_OFF() (PORTB &= ~(1 << 2)) // D10 LOW
-#define HEAT1_ON() (PORTB |= (1 << 1))   // D9  HIGH
-#define HEAT1_OFF() (PORTB &= ~(1 << 1)) // D9  LOW
-
-// Inputs (Port B & D)
-// D8 is Port B bit 0, D7-D5 are Port D bits 7-5
-#define READ_TOP() (PINB & (1 << 0))    // D8
-#define READ_BOTTOM() (PIND & (1 << 7)) // D7
-#define READ_WAX2() (PIND & (1 << 6))   // D6
-#define READ_WAX1() (PIND & (1 << 5))   // D5
-#define READ_START() (PIND & (1 << 2))  // D2
-
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1 (1..16) clamp to 1..12
 void readTankID()
 {
-  // PINC reads A0-A5. 0x0F is binary 00001111.
-  // This grabs all 4 bits in one clock cycle (62.5 nanoseconds).
-  uint8_t currentRead = (~PINC) & 0x0F;
+  uint8_t currentRead = 0;
+  for (uint8_t i = 0; i < 4; ++i)
+  {
+    uint8_t v = (digitalRead(PIN_ID_BITS[i]) == HIGH) ? 1 : 0;
+    currentRead |= (v << i);
+  }
 
   // Optional: If your hardware is "Tank 1 to 12" but the binary
   // starts at 0, you might need: currentRead += 1;
@@ -166,18 +150,21 @@ void readTankID()
   }
 }
 
+// Sensor helpers (active LOW). Return true when sensor is active (LOW) or when a fail-safe (treated as active).
+bool sensorActive(uint8_t pin)
+{
+  return digitalRead(pin) == LOW;
+}
+
 struct DebouncedSensor
 {
-  volatile uint8_t *port; // Pointer to the PIN register (PINB or PIND)
-  uint8_t mask;           // The bit mask (e.g., 1 << 7)
+  uint8_t pin;
   unsigned long lastLowTime;
-  bool stableActive;
+  bool stableActive; // Added to store the "last known" state
 
   void update()
   {
-    // Direct pointer dereferencing:
-    // We read the register and check if the bit is 0 (LOW)
-    bool rawReading = !(*port & mask);
+    bool rawReading = (sensorActive(pin));
 
     if (rawReading)
     {
@@ -195,16 +182,17 @@ struct DebouncedSensor
     }
   }
 
-  bool isActive() { return stableActive; }
+  bool isActive()
+  {
+    return stableActive;
+  }
 };
 
-// ========================= INITIALIZATION =========================
-// &PINB and &PIND are the memory addresses of the hardware registers.
-// Now the 'update' function doesn't need 'if' statements!
-DebouncedSensor topLimit = {&PINB, (1 << 0), 0, false};    // D8
-DebouncedSensor bottomLimit = {&PIND, (1 << 7), 0, false}; // D7
-DebouncedSensor wax2Ready = {&PIND, (1 << 6), 0, false};   // D6
-DebouncedSensor wax1Ready = {&PIND, (1 << 5), 0, false};   // D5
+// Initialize your specific sensors
+DebouncedSensor topLimit = {SENSOR_TOP, 0};
+DebouncedSensor bottomLimit = {SENSOR_BOTTOM, 0};
+DebouncedSensor wax1Ready = {SENSOR_WAX1, 0};
+DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 
 struct TankProfile
 {
@@ -262,7 +250,7 @@ void moveOn()
   if (isMoving)
     return;
 
-  MOVE_ON();
+  digitalWrite(MOVE_PIN, HIGH);
   isMoving = true;
   DBGLN("Moving on");
 }
@@ -271,7 +259,7 @@ void moveOff()
   if (!isMoving)
     return;
 
-  MOVE_OFF();
+  digitalWrite(MOVE_PIN, LOW);
   isMoving = false;
   DBGLN("Moving off");
 }
@@ -280,7 +268,7 @@ void vibOn()
   if (isVibrating)
     return;
 
-  VIB_ON();
+  digitalWrite(VIB_PIN, HIGH);
   isVibrating = true;
   DBGLN("Vibrating on");
 }
@@ -289,7 +277,7 @@ void vibOff()
   if (!isVibrating)
     return;
 
-  VIB_OFF();
+  digitalWrite(VIB_PIN, LOW);
   isVibrating = false;
   DBGLN("Vibrating off");
 }
@@ -299,7 +287,7 @@ void heaterOn1()
   if (isHeating1)
     return;
 
-  HEAT1_ON();
+  digitalWrite(HEATER1_PIN, HIGH);
   isHeating1 = true;
   DBGLN("Start First Heater");
 }
@@ -308,7 +296,7 @@ void heaterOn2()
   if (isHeating2)
     return;
 
-  HEAT2_ON();
+  digitalWrite(HEATER2_PIN, HIGH);
   isHeating2 = true;
   DBGLN("Start Second Heater");
 }
@@ -317,7 +305,7 @@ void heaterOff1()
   if (!isHeating1)
     return;
 
-  HEAT1_OFF();
+  digitalWrite(HEATER1_PIN, LOW);
   isHeating1 = false;
   DBGLN("Stop First Heater");
 }
@@ -326,7 +314,7 @@ void heaterOff2()
   if (!isHeating2)
     return;
 
-  HEAT2_OFF();
+  digitalWrite(HEATER2_PIN, LOW);
   isHeating2 = false;
   DBGLN("Stop Second Heater");
 }
@@ -477,11 +465,11 @@ void printRemainingTimeForTank(uint8_t tank)
 /**
  * Returns true only after the button has been held for 'duration'
  */
-bool buttonHeld(uint32_t duration)
+bool buttonHeld(uint8_t button, uint32_t duration)
 {
-  uint8_t state = READ_START(); // Assumes LOW when pressed (INPUT_PULLUP)
+  uint8_t state = sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
 
-  if (!state)
+  if (state)
   {
     if (pressedAt == 0)
     {
@@ -605,7 +593,7 @@ FiniteState fsm(transitions, numberOfTransitions);
 // Implementation: Predicates, Processes and Events
 bool idlePredicate(id_t id)
 {
-  if (buttonHeld(START_BUTTON_DELAY_MS))
+  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     DBGLN("Start button pressed");
     return true;
@@ -727,7 +715,7 @@ bool downPredicate(id_t id)
     fsm.begin(S_ERROR);
   }
 
-  if (buttonHeld(START_BUTTON_DELAY_MS))
+  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     vibOff();
     inspection = true;
@@ -865,7 +853,8 @@ bool upPredicate(id_t id)
 {
   if (!inspection)
     return true;
-  if (buttonHeld(START_BUTTON_DELAY_MS))
+
+  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
   {
     inspection = false;
     return false;
@@ -1047,28 +1036,23 @@ void fsmTask() { fsm.execute(); }
 // ========================= SETUP & LOOP =========================
 void setupPins()
 {
-  // --- OUTPUTS (Port B) ---
-  // D9(PB1), D10(PB2), D11(PB3), D12(PB4)
-  // We set bits 1,2,3,4 to 1 for OUTPUT
-  DDRB |= (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
+  pinMode(VIB_PIN, OUTPUT);
+  digitalWrite(VIB_PIN, LOW);
+  pinMode(MOVE_PIN, OUTPUT);
+  digitalWrite(MOVE_PIN, LOW);
+  pinMode(HEATER1_PIN, OUTPUT);
+  digitalWrite(HEATER1_PIN, LOW);
+  pinMode(HEATER2_PIN, OUTPUT);
+  digitalWrite(HEATER2_PIN, LOW);
 
-  // Ensure they start LOW (Off)
-  PORTB &= ~((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4));
-
-  // --- INPUTS with PULLUP (Port D) ---
-  // D2(PD2), D5(PD5), D6(PD6), D7(PD7)
-  DDRD &= ~((1 << 2) | (1 << 5) | (1 << 6) | (1 << 7)); // Set as INPUT
-  PORTD |= ((1 << 2) | (1 << 5) | (1 << 6) | (1 << 7)); // Enable PULLUP
-
-  // --- INPUTS with PULLUP (Port B) ---
-  // D8(PB0) - Top Sensor
-  DDRB &= ~(1 << 0);
-  PORTB |= (1 << 0);
-
-  // --- TANK ID BITS (Port C / Analog Pins) ---
-  // A0-A3 as INPUT with PULLUP
-  DDRC &= ~0x0F;
-  PORTC |= 0x0F; // enable internal pullups
+  // Sensor inputs - active LOW
+  pinMode(SENSOR_WAX2, INPUT_PULLUP);
+  pinMode(SENSOR_WAX1, INPUT_PULLUP);
+  pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
+  pinMode(SENSOR_TOP, INPUT_PULLUP);
+  pinMode(START_BUTTON, INPUT_PULLUP);
+  for (uint8_t i = 0; i < 4; i++)
+    pinMode(PIN_ID_BITS[i], INPUT);
 }
 
 void setup()

@@ -136,21 +136,16 @@ void readTankID()
 {
   // PINC reads A0-A5. 0x0F is binary 00001111.
   // This grabs all 4 bits in one clock cycle (62.5 nanoseconds).
-  uint8_t currentRead = (PINC & 0x0F);
+  uint8_t currentRead = (~PINC) & 0x0F;
 
   // Optional: If your hardware is "Tank 1 to 12" but the binary
   // starts at 0, you might need: currentRead += 1;
-
   if (currentRead < 1 || currentRead > 12)
   {
     tankException = true;
     // Only print on change to avoid flooding serial
-    if (lastStableTank != 99)
-    {
-      DBG("Wrong Tank ID: ");
-      DBGLN(currentRead);
-      lastStableTank = 99; // Error marker
-    }
+    DBG("Wrong Tank ID: ");
+    DBGLN(currentRead);
     return;
   }
 
@@ -236,12 +231,6 @@ const TankProfile tanks[13] PROGMEM = {
     {120, 3, 3, 2}  // Tank 12: Both Heaters, Both Sensors, 2 cycles
 };
 
-uint8_t safeNumber(uint8_t number)
-{
-  if (number > 12 || number < 1)
-    return 1;
-  return number;
-}
 // Accessors for PROGMEM table
 static inline uint16_t getDwellMinutes(uint8_t idx)
 {
@@ -257,8 +246,11 @@ static inline uint8_t getRequiredWaxSensor(uint8_t idx)
 }
 static inline uint8_t getNextRequiredSensor(uint8_t idx)
 {
-  return (uint8_t)pgm_read_byte(&(tanks[safeNumber(++idx)].requiredWax));
+  // wrap explicitly: next after 12 -> 1 (or return 0 if you prefer "no next")
+  uint8_t next = (idx >= 12) ? 1 : (idx + 1);
+  return (uint8_t)pgm_read_byte(&(tanks[next].requiredWax));
 }
+
 static inline uint8_t getCycles(uint8_t idx)
 {
   return (uint8_t)pgm_read_byte(&(tanks[idx].cycles));
@@ -356,27 +348,47 @@ void outputsKill()
 
 // Helper for F() strings
 void lcdPrintPadded(const __FlashStringHelper *text)
-{
-  DBGLN(text);
-  lcd.print(text);
-  // strlen_P is the version of strlen that reads from Flash
+{ // 16 characters + 1 for the null terminator '\0'
+  char lcdBuffer[17];
+
+  // Clear buffer with spaces
+  memset(lcdBuffer, ' ', 16);
+  lcdBuffer[16] = '\0';
+
+  // Copy flash string into the start of the buffer
+  // strncpy_P is like strncpy but reads from Flash memory
   int len = strlen_P((PGM_P)text);
-  for (int i = len; i < 16; i++)
-  {
-    lcd.print(F(" "));
-  }
+  if (len > 16)
+    len = 16;
+  memcpy_P(lcdBuffer, (PGM_P)text, len);
+
+  // Send the entire 16-char string in one go
+  lcd.print(lcdBuffer);
+
+  DBGLN(text);
 }
 
 // Helper for RAM strings
 void lcdPrintPadded(const char *text)
 {
+  // 16 characters + 1 for the null terminator '\0'
+  char lcdBuffer[17];
+
+  // Clear buffer with spaces
+  memset(lcdBuffer, ' ', 16);
+  lcdBuffer[16] = '\0';
+
+  // Copy flash string into the start of the buffer
+  // strncpy_P is like strncpy but reads from Flash memory
+  int len = strlen_P((PGM_P)text);
+  if (len > 16)
+    len = 16;
+  memcpy_P(lcdBuffer, (PGM_P)text, len);
+
+  // Send the entire 16-char string in one go
+  lcd.print(lcdBuffer);
+
   DBGLN(text);
-  lcd.print(text);
-  int len = strlen(text);
-  for (int i = len; i < 16; i++)
-  {
-    lcd.print(F(" "));
-  }
 }
 // Version for F() macro strings (Flash memory)
 void lcdShowStatus(const __FlashStringHelper *line1, const __FlashStringHelper *line2)
@@ -398,16 +410,16 @@ void lcdShowStatus(const char *line1, const char *line2)
 
 void LcdShowTank(uint8_t tank)
 {
-  lcd.print(F("Tank: ")); // Print the label from Flash
-  lcd.print(tank);        // Print the variable directly
+  char buffer[17]; // 16 chars + null terminator
 
-  // Manual Padding: Clear the rest of the line (16 chars total)
-  // "Tank: " is 6 chars, lastStableTank is 1 or 2 chars.
-  int usedChars = (tank < 10) ? 7 : 8;
-  for (int i = usedChars; i < 16; i++)
-  {
-    lcd.print(F(" "));
-  }
+  // %-6s = "Tank: " left-aligned
+  // %-2d = the tank number, padded to 2 spaces
+  // The rest of the 16 characters will be filled with spaces automatically
+  snprintf(buffer, 17, "Tank: %-2d       ", tank);
+
+  lcd.setCursor(0, 0);
+  lcd.print(buffer); // One single I2C burst!
+
   DBG("Tank: ");
   DBGLN(tank);
 }
@@ -452,31 +464,20 @@ void printRemainingTimeForTank(uint8_t tank)
   lcd.setCursor(0, 0);
   LcdShowTank(tank);
 
+  // 5. LCD Update (Optimized)
+  char timeBuffer[17];
+  // Format: "Tank: 12  01:30:05"
+  snprintf(timeBuffer, 17, "Time: %02u:%02u:%02u",
+           tank, hours, displayMins, dispalySeconds);
+
   lcd.setCursor(0, 1);
-  lcd.print(F("Time "));
-  lcd.print(hours);
-
-  lcd.print(F(":"));
-  if (displayMins < 10)
-    lcd.print(F("0"));
-  lcd.print(displayMins);
-
-  lcd.print(F(":"));
-  if (dispalySeconds < 10)
-    lcd.print(F("0"));
-  lcd.print(dispalySeconds);
-
-  // Padding to clear old characters
-  for (int i = (hours > 9 ? 9 : 8); i < 16; i++)
-  {
-    lcd.print(F(" "));
-  }
+  lcd.print(timeBuffer);
 }
 
 /**
  * Returns true only after the button has been held for 'duration'
  */
-bool buttonHeld(uint8_t button, uint32_t duration)
+bool buttonHeld(uint32_t duration)
 {
   uint8_t state = READ_START(); // Assumes LOW when pressed (INPUT_PULLUP)
 
@@ -604,7 +605,7 @@ FiniteState fsm(transitions, numberOfTransitions);
 // Implementation: Predicates, Processes and Events
 bool idlePredicate(id_t id)
 {
-  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+  if (buttonHeld(START_BUTTON_DELAY_MS))
   {
     DBGLN("Start button pressed");
     return true;
@@ -726,7 +727,7 @@ bool downPredicate(id_t id)
     fsm.begin(S_ERROR);
   }
 
-  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+  if (buttonHeld(START_BUTTON_DELAY_MS))
   {
     vibOff();
     inspection = true;
@@ -864,7 +865,7 @@ bool upPredicate(id_t id)
 {
   if (!inspection)
     return true;
-  if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+  if (buttonHeld(START_BUTTON_DELAY_MS))
   {
     inspection = false;
     return false;
@@ -1043,19 +1044,6 @@ void safetyTask()
 
 void fsmTask() { fsm.execute(); }
 
-void healthTask()
-{ // run last - decide if we reset WDT
-  // simple heuristic: not in error state and at least one sensor updated recently
-  lastLoopHealthy = (fsm.id != S_ERROR);
-
-  if (lastLoopHealthy)
-  {
-    wdt_reset();
-    pendingTank = 1;
-    lastStableTank = 1;
-  }
-}
-
 // ========================= SETUP & LOOP =========================
 void setupPins()
 {
@@ -1078,17 +1066,18 @@ void setupPins()
   PORTB |= (1 << 0);
 
   // --- TANK ID BITS (Port C / Analog Pins) ---
-  // A0-A3 (PC0-PC3) as INPUT (no pullup as per your original code)
+  // A0-A3 as INPUT with PULLUP
   DDRC &= ~0x0F;
+  PORTC |= 0x0F; // enable internal pullups
 }
 
 void setup()
 {
-  // #ifdef DEBUG
+#ifdef DEBUG
   Serial.begin(115200);
   while (!Serial)
     ;
-  // #endif
+#endif
   setupPins();
   Wire.begin();
   lcd.init();
@@ -1113,7 +1102,6 @@ void loop()
     fsmTask();
 
     unsigned long duration = micros() - start; // 🔹 end timing
-    if (duration > 1000)
-      Serial.println(duration); // 🔹 print µs
+    Serial.println(duration);                  // 🔹 print µs
   }
 }

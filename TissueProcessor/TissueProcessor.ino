@@ -1118,7 +1118,7 @@ void loop()
     unsigned long duration = micros() - start; // 🔹 end timing
     if (duration > 1000)
     {
-      DBG("Over Time: ")
+      DBG("Over Time: ");
       DBGLN(duration); // 🔹 print µs
     }
 #endif

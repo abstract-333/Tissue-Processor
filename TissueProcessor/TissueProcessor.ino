@@ -1103,8 +1103,10 @@ void loop()
   unsigned long now = millis();
   if (now - lastTick >= TICK_MS)
   {
-
+#ifdef DEBUG
     unsigned long start = micros(); // 🔹 start timing
+#endif
+
     lastTick = now;
 
     wdt_reset();
@@ -1112,8 +1114,13 @@ void loop()
     safetyTask();
     fsmTask();
 
+#ifdef DEBUG
     unsigned long duration = micros() - start; // 🔹 end timing
     if (duration > 1000)
-      Serial.println(duration); // 🔹 print µs
+    {
+      DBG("Over Time: ")
+      DBGLN(duration); // 🔹 print µs
+    }
+#endif
   }
 }

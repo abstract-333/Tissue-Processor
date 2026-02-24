@@ -128,17 +128,6 @@ void readTankID()
     currentRead |= (v << i);
   }
 
-  if (currentRead < 1 || currentRead > 12)
-  {
-    tankException = true;
-    // Only print on change to avoid flooding serial
-    DBG("Wrong Tank ID: ");
-    DBGLN(currentRead);
-    return;
-  }
-
-  tankException = false;
-
   if (currentRead != pendingTank)
   {
     pendingTank = currentRead;
@@ -147,11 +136,20 @@ void readTankID()
   }
   else if (lastStableTank != pendingTank && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
   {
+    if (pendingTank < 1 || pendingTank > 12)
+    {
+      tankException = true;
+      // Only print on change to avoid flooding serial
+      DBG("Wrong Tank ID: ");
+      DBGLN(currentRead);
+      return;
+    }
     lastStableTank = pendingTank;
     tankStabilityTime = 0;
     tankChanged = true;
     DBGLN("Tank Changed & Stable");
   }
+  tankException = false;
 }
 
 struct DebouncedSensor

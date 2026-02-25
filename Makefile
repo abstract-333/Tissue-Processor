@@ -47,3 +47,7 @@ clean:
 
 clint:
 	uv run cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/
+
+
+format: 
+	clang-format -i TissueProcessor/*.ino tests/native/*.cpp

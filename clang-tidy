@@ -1,5 +1,4 @@
 Checks: >
-  -*,
   clang-analyzer-*,
   modernize-*,
   performance-*,

@@ -9,7 +9,7 @@ ARDUINO_CLI ?= C:/Users/basha/AppData/Local/Programs/Arduino IDE/resources/app/l
 ELF         := $(BUILD_DIR)/TissueProcessor.ino.elf
 HEX         := $(BUILD_DIR)/TissueProcessor.ino.hex
 
-.PHONY: all build compile upload clean size monitor
+.PHONY: all build compile upload clean size monitor lint test dev start
 
 all: build
 
@@ -45,9 +45,22 @@ clean:
 		echo "no build dir"; \
 	fi
 
-clint:
-	uv run cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/
-
+#
+lint:
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/; \
+	else \
+		cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/; \
+	fi
 
 format: 
 	clang-format -i TissueProcessor/*.ino tests/native/*.cpp
+
+#Run Python tests (uses uv and pyproject dependency groups)
+test: 
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run pytest tests/python; \
+	else \
+		pytest tests/python; \
+	fi
+	

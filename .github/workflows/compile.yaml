@@ -1,4 +1,4 @@
-name: Arduino Compile
+name: Arduino CI with Static Analysis
 
 on:
   push:
@@ -6,16 +6,16 @@ on:
   pull_request:
     branches: [ main ]
 
-
 jobs:
-  build:
+  build-and-analyze:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Compile Sketch
+      # 1. Compile and Export the Database
+      - name: Compile and Generate Database
         uses: arduino/compile-sketches@v1
         with:
           fqbn: "arduino:avr:uno" 
@@ -26,6 +26,35 @@ jobs:
             - source-url: https://github.com/MicroBeaut/Finite-State.git
           sketch-paths: |
             - TissueProcessor
-          # This helper avoids failure if the folder structure is slightly off
-          enable-deltas-report: true
-    
+          # EXTREMELY IMPORTANT: This creates the compile_commands.json
+          enable-compilation-database: true
+
+      # 2. Locate the Database
+      # The arduino action puts the database in a specific build folder.
+      # We move it to the root so the next action can find it easily.
+      - name: Prepare Database for CodeChecker
+        run: |
+          find . -name "compile_commands.json" -exec cp {} ./compile_commands.json \;
+          echo "Database found and moved to root."
+
+      # 3. Run CodeChecker Analysis
+      - name: Run CodeChecker
+        uses: whisperity/codechecker-analysis-action@v1
+        id: codechecker
+        with:
+          logfile: ./compile_commands.json
+          llvm-version: 15
+
+      # 4. Upload HTML Bug Reports
+      - name: Upload Analysis Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodeChecker-Reports
+          path: ${{ steps.codechecker.outputs.result-html-dir }}
+
+      # 5. Optional: Break the build on serious bugs
+      - name: Check for Analysis Warnings
+        if: ${{ steps.codechecker.outputs.warnings == 'true' }}
+        run: |
+          echo "::warning title=CodeChecker::Static analysis found potential memory or logic errors."
+          # exit 1 # Uncomment this if you want to fail the PR on any warning

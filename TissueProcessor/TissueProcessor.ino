@@ -10,6 +10,14 @@
 #define DBGLN(x)
 #endif
 
+#ifdef UNIT_TEST
+extern "C" uint32_t millis();
+extern "C" int digitalRead(int pin);
+extern "C" void digitalWrite(int pin, int val);
+extern void firmware_setup_for_test();
+extern void loop_tick_sim();
+extern int fsm_id_for_test();
+#endif
 /*
   Wax Bath / Tissue Processor Controller
   - Implements the sequential logic described by the user.

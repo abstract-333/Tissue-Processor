@@ -44,6 +44,9 @@ jobs:
         with:
           logfile: ./compile_commands.json
           llvm-version: 15
+          # Add these two lines to fix the "codechecker==" error:
+          install-custom: false
+          version: "6.24.4"
 
       # 4. Upload HTML Bug Reports
       - name: Upload Analysis Reports

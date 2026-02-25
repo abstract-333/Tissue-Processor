@@ -73,6 +73,8 @@ To use the provided `Makefile` for a smooth development experience, you will nee
 1. **GNU Make:** To execute the build commands.
 2. **Arduino IDE (or `arduino-cli`):** The Makefile relies on `arduino-cli` (bundled with the IDE) to compile and upload the code.
 3. **Python + `uv` (or `pip`):** We use Python as a shell and test-runner environment. `uv` is recommended for fast dependency management, but standard `pip` works perfectly fine. This is required for running the linters and tests.
+4. **LLVM / Clang:** Required for the `make format command` (clang-format).
+5. **Unity Test Framework:** Required for native C logic testing (C-based unit tests).
 
 ### Option 2: Manual IDE Setup
 

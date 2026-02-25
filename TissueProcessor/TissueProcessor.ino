@@ -343,9 +343,7 @@ void lcdPrintPadded(const __FlashStringHelper *text)
   PGM_P p = reinterpret_cast<PGM_P>(text);
 
   // Measure length in Flash
-  size_t len = strlen_P(p);
-  if (len > 16)
-    len = 16;
+  size_t len = strnlen_P(p, 16);
 
   // Copy from Flash to RAM buffer
   memcpy_P(lcdBuffer, p, len);
@@ -367,9 +365,7 @@ void lcdPrintPadded(const char *text)
   lcdBuffer[16] = '\0';
 
   // 2. Use standard RAM-based string functions
-  unsigned int len = strlen(text);
-  if (len > 16)
-    len = 16;
+  unsigned int len = strnlen(text, 16);
 
   // 3. Copy from RAM to our local buffer
   memcpy(lcdBuffer, text, len);

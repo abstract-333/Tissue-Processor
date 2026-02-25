@@ -130,3 +130,9 @@ You can alter the behavior of the system for development by uncommenting the fol
 * **Sketch Simulation:** [Try Online via Wokwi](https://wokwi.com/projects/455347457174812673)
 
 > **Disclaimer:** This codebase is intended for research and prototyping. Verify all safety timings, thermal cutoffs, and physical limit switches before use with actual biological samples.
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+Copyright (c) 2026 abstract-333, Basher Hasan

@@ -192,7 +192,7 @@ DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
 
 struct TankProfile
 {
-  unsigned int dwellMinutes;
+  uint8_t dwellMinutes;
   uint8_t requiredHeater; // 0: None, 1: Heater1, 2: Heater2, 3: Both
   uint8_t requiredWax;    // 0: None, 1: Wax1, 2: Wax2, 3: Both
   uint8_t cycles;         // 1: Normal, 2: Double dwell (for tanks 11, 12)
@@ -216,7 +216,7 @@ const TankProfile tanks[13] PROGMEM = {
 };
 
 // Accessors for PROGMEM table
-static inline uint16_t getDwellMinutes(uint8_t idx)
+static inline uint8_t getDwellMinutes(uint8_t idx)
 {
   return (uint16_t)pgm_read_word(&(tanks[idx].dwellMinutes));
 }
@@ -367,7 +367,7 @@ void lcdPrintPadded(const char *text)
   lcdBuffer[16] = '\0';
 
   // 2. Use standard RAM-based string functions
-  int len = strlen(text);
+  unsigned int len = strlen(text);
   if (len > 16)
     len = 16;
 
@@ -460,7 +460,7 @@ void printRemainingTimeForTank(uint8_t tank)
 
   // 2. Get total duration from our Data Table
   // If the tank is 0 or out of bounds, use a safety fallback
-  unsigned int totalMins = (tank >= 1 && tank <= 12) ? getDwellMinutes(tank) : MIN_DWELL_MIN;
+  uint8_t totalMins = (tank >= 1 && tank <= 12) ? getDwellMinutes(tank) : MIN_DWELL_MIN;
 
   // 3. Calculate Elapsed and Remaining
   unsigned long totalMs = (unsigned long)totalMins * ONE_MIN_MS;
@@ -1016,7 +1016,7 @@ void onActionChanged(EventArgs e)
 }
 // Setup and loop
 void handleSensorsFailure()
-{ // TODO: Handle sensors' errors..
+{
   bool topSensor = topLimit.isActive();
   bool bottomSensor = bottomLimit.isActive();
   bool heatSensor_1 = wax1Ready.isActive();
@@ -1103,6 +1103,7 @@ void loop()
   unsigned long now = millis();
   if (now - lastTick >= TICK_MS)
   {
+
 #ifdef DEBUG
     unsigned long start = micros(); // 🔹 start timing
 #endif

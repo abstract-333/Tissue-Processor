@@ -39,3 +39,5 @@ Thumbs.db
 # --- Hardware/Tooling ---
 *.pyc
 .stack-work/
+
+*.pio

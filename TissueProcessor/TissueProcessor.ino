@@ -218,7 +218,7 @@ const TankProfile tanks[13] PROGMEM = {
 // Accessors for PROGMEM table
 static inline uint8_t getDwellMinutes(uint8_t idx)
 {
-  return (uint16_t)pgm_read_word(&(tanks[idx].dwellMinutes));
+  return pgm_read_byte(&(tanks[idx].dwellMinutes));
 }
 static inline uint8_t getRequiredHeater(uint8_t idx)
 {

@@ -137,4 +137,6 @@ You can alter the behavior of the system for development by uncommenting the fol
 
 This project is licensed under the **MIT License**.
 
-Copyright (c) 2026 abstract-333, Basher Hasan
+Copyright (c) 2026 Basher Hasan (abstract-333)
+
+See the [LICENSE](LICENSE) file for details.

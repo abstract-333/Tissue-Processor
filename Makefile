@@ -1,66 +1,87 @@
-# Makefile — Arduino (arduino-cli)
-# Edit these variables if needed
-FQBN        ?= arduino:avr:uno
-SKETCH      ?= TissueProcessor/TissueProcessor.ino
-BUILD_DIR   ?= build
-PORT        ?= COM3            # change to the serial port your Uno uses (e.g. COM3, /dev/ttyACM0)
-ARDUINO_CLI ?= C:/Users/basha/AppData/Local/Programs/Arduino IDE/resources/app/lib/backend/resources/arduino-cli.exe
-# derived
-ELF         := $(BUILD_DIR)/TissueProcessor.ino.elf
-HEX         := $(BUILD_DIR)/TissueProcessor.ino.hex
+## ------------------------------------------------------------------------- ##
+##                                ENVIRONMENT SETUP                          ##
+## ------------------------------------------------------------------------- ##
 
-.PHONY: all build compile upload clean size monitor lint test dev start
+# Path to arduino-cli (using your specific path)
+ARDUINO_CLI ?= C:/Users/basha/AppData/Local/Programs/Arduino IDE/resources/app/lib/backend/resources/arduino-cli.exe
+
+# Serial Port (Windows: COMx, Linux: /dev/ttyACMx)
+PORT        ?= COM3
+
+## -------------------------------------------------------------------------- ##
+##                                 PROJECT SETUP                              ##
+## -------------------------------------------------------------------------- ##
+
+TARGET      := TissueProcessor
+SKETCH      := $(TARGET)/$(TARGET).ino
+FQBN        := arduino:avr:uno
+BUILD_DIR   := build
+
+# Derived paths for size checking
+ELF         := $(BUILD_DIR)/$(TARGET).ino.elf
+
+## -------------------------------------------------------------------------- ##
+##                                BUILD TARGETS                               ##
+## -------------------------------------------------------------------------- ##
+
+.PHONY: all build compile upload clean size monitor lint format test
 
 all: build
 
-# compile/prepare build folder (creates .elf/.hex)
+# Compile the sketch
 build:
-	@echo "Compiling $(SKETCH) for $(FQBN)..."
+	@echo "--- Compiling $(SKETCH) for $(FQBN) ---"
+	@if [ ! -d "$(BUILD_DIR)" ]; then mkdir -p $(BUILD_DIR); fi
 	$(ARDUINO_CLI) compile --fqbn $(FQBN) --output-dir $(BUILD_DIR) $(SKETCH)
 
 compile: build
 
-# upload using arduino-cli (make sure PORT is set correctly)
+# Upload to the board
 upload: build
-	@if [ -z "$(PORT)" ]; then echo "ERROR: set PORT variable (e.g. make upload PORT=COM3)"; exit 1; fi
-	@echo "Uploading to $(PORT)..."
+	@echo "--- Uploading to $(PORT) ---"
 	$(ARDUINO_CLI) upload -p $(PORT) --fqbn $(FQBN) --input-dir $(BUILD_DIR)
 
-# print program/ram usage (uses avr-size included with toolchain if available)
+# Show memory usage
 size: build
-	@echo "Size info for $(ELF):"
-	@if command -v avr-size >/dev/null 2>&1; then avr-size -A $(ELF); else echo "avr-size not found — arduino-cli compile output contains size info."; fi
+	@echo "--- Size Info ---"
+	$(ARDUINO_CLI) compile --fqbn $(FQBN) --show-properties $(SKETCH) | grep "recipe.size.pattern" || echo "Check build output for size."
 
-# serial monitor (forward to arduino-cli monitor)
+# Open Serial Monitor
 monitor:
-	@if [ -z "$(PORT)" ]; then echo "ERROR: set PORT variable (e.g. make monitor PORT=COM3)"; exit 1; fi
+	@echo "--- Opening Monitor on $(PORT) ---"
 	$(ARDUINO_CLI) monitor -p $(PORT)
 
-# cleanup build artifacts
+## -------------------------------------------------------------------------- ##
+##                                MAINTENANCE                                 ##
+## -------------------------------------------------------------------------- ##
+
+# Cleanup build artifacts
 clean:
 	@echo "Cleaning $(BUILD_DIR)..."
 	@if [ -d "$(BUILD_DIR)" ]; then \
 		if [ "$(OS)" = "Windows_NT" ]; then cmd /C rmdir /S /Q "$(BUILD_DIR)"; else rm -rf "$(BUILD_DIR)"; fi \
 	else \
-		echo "no build dir"; \
+		echo "Nothing to clean."; \
 	fi
 
-#
+# Code Quality
 lint:
+	@echo "--- Running Linter ---"
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/; \
+		uv run cpplint --filter=-legal/copyright --recursive tests/native/ $(TARGET)/; \
 	else \
-		cpplint --filter=-legal/copyright --recursive tests/native/ TissueProcessor/; \
+		cpplint --filter=-legal/copyright --recursive tests/native/ $(TARGET)/; \
 	fi
 
 format: 
-	clang-format -i TissueProcessor/*.ino tests/native/*.cpp
+	@echo "--- Formatting Code ---"
+	clang-format -i $(TARGET)/*.ino tests/native/*.cpp
 
-#Run Python tests (uses uv and pyproject dependency groups)
+# Run Python tests
 test: 
+	@echo "--- Running PyTests ---"
 	@if command -v uv >/dev/null 2>&1; then \
 		uv run pytest tests/python; \
 	else \
 		pytest tests/python; \
 	fi
-	

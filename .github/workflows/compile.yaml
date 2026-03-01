@@ -16,7 +16,7 @@ jobs:
 
       # Compile sketch
       - name: Compile sketch
-        uses: abstract-333/compile-sketches@v1.0.1
+        uses: abstract-333/compile-sketches@v1.0.2
         with:
           fqbn: "arduino:avr:uno" 
           platforms: |

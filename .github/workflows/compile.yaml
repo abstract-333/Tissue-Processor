@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-  
+
 jobs:
   build-and-analyze:
     runs-on: ubuntu-latest
@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Compile sketch
-        uses: abstract-333/compile-sketches@v1.0.4
+        uses: abstract-333/compile-sketches@v1.0.5
         with:
           fqbn: "arduino:avr:uno" 
           platforms: |

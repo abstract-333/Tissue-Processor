@@ -14,7 +14,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      # Compile sketch
       - name: Compile sketch
         uses: abstract-333/compile-sketches@v1.0.4
         with:

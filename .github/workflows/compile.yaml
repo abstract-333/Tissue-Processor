@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Compile sketch
-        uses: abstract-333/compile-sketches@v1.0.6
+        uses: abstract-333/compile-sketches@v1.0.7
         with:
           fqbn: "arduino:avr:uno" 
           platforms: |

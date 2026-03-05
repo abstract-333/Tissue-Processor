@@ -9,6 +9,7 @@
 #define DBG(x)
 #define DBGLN(x)
 #endif
+
 /*
   Wax Bath / Tissue Processor Controller
   - Implements the sequential logic described by the user.

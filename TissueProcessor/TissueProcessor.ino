@@ -49,7 +49,6 @@
 #include <Wire.h>
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
-// #include <Arduino.h>
 
 // ========================= PIN MAP (as provided) =========================
 // Power outputs

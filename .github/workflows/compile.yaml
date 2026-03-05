@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Compile sketch
-        uses: abstract-333/compile-sketches@v1.0.8
+        uses: abstract-333/compile-sketches@v1.0.9
         with:
           fqbn: "arduino:avr:uno" 
           platforms: |
@@ -26,3 +26,4 @@ jobs:
             - source-url: https://github.com/MicroBeaut/Finite-State.git
           sketch-paths: |
             - TissueProcessor
+          enable-cache: true

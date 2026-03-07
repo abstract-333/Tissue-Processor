@@ -53,18 +53,18 @@
 
 // ========================= PIN MAP (as provided) =========================
 // Power outputs
-const uint8_t MOVE_PIN = 12;    // D12 - Processing vibration motor
-const uint8_t VIB_PIN = 11;     // D11 - Relay enable for AC motor
-const uint8_t HEATER2_PIN = 10; // D10   - Heater 1
-const uint8_t HEATER1_PIN = 9;  // D9  - Heater 2 (power unit)
+const uint8_t MOVE_PIN = 8;    // D8 - Processing vibration motor
+const uint8_t VIB_PIN = 7;     // D7 - Relay enable for AC motor
+const uint8_t HEATER1_PIN = 6; // D6  - Heater 1
+const uint8_t HEATER2_PIN = 5; // D5 - Heater 2
 // Sesnors &  thermostats (Active LOW: 0 = active)
-const uint8_t SENSOR_TOP = 8;    // D8
-const uint8_t SENSOR_BOTTOM = 7; // D7
-const uint8_t SENSOR_WAX2 = 6;   // D6
-const uint8_t SENSOR_WAX1 = 5;   // D5
+const uint8_t SENSOR_TOP = A0;    // A0
+const uint8_t SENSOR_BOTTOM = A1; // A1
+const uint8_t SENSOR_WAX2 = 4;    // D4
+const uint8_t SENSOR_WAX1 = 3;    // D3
 
-// Container ID (A0..A3)
-const uint8_t PIN_ID_BITS[4] = {A0, A1, A2, A3}; // bit0 LSB .. bit3 MSB
+// Container ID (B9..B12)
+const uint8_t PIN_ID_BITS[4] = {9, 10, 11, 12}; // bit0 LSB .. bit3 MSB
 
 // UI
 const uint8_t START_BUTTON = 2; // D2
@@ -132,7 +132,7 @@ void readTankID()
     uint8_t currentRead = 0;
     for (uint8_t i = 0; i < 4; ++i)
     {
-        uint8_t v = sensorActive(PIN_ID_BITS[i]);
+        uint8_t v = digitalRead(PIN_ID_BITS[i]);
         currentRead |= (v << i);
     }
 
@@ -1098,7 +1098,7 @@ void setupPins()
     pinMode(SENSOR_TOP, INPUT_PULLUP);
     pinMode(START_BUTTON, INPUT_PULLUP);
     for (uint8_t i = 0; i < 4; i++)
-        pinMode(PIN_ID_BITS[i], INPUT_PULLUP);
+        pinMode(PIN_ID_BITS[i], INPUT);
 }
 
 void setup()

@@ -16,20 +16,23 @@
   - Uses the MicroBeaut Finite-State library for structured state transitions.
 
   Pin mapping:
-    Power outputs: D9..D12
-      D12 -> movement motor (MOVE_PIN)
-      D11 -> vibration motor (VIB_PIN)
-      D10 -> heater 2 (HEATER2_PIN)
-      D9  -> heater 1 (HEATER1_PIN)
+    Power outputs: D5..D8
+      D8 -> movement motor (MOVE_PIN)
+      D7 -> vibration motor (VIB_PIN)
+      D6 -> heater 2 (HEATER2_PIN)
+      D5  -> heater 1 (HEATER1_PIN)
 
-    Sensor inputs (active LOW): D5..D8
-      D8 -> top-level sensor (TOP_SENSOR_PIN)
-      D7 -> bottom-level sensor (BOTTOM_SENSOR_PIN)
-      D6 -> wax-ready sensor 2 (WAX2_SENSOR_PIN)
-      D5 -> wax-ready sensor 1 (WAX1_SENSOR_PIN)
+    Sensor inputs (active LOW): A0, A1, D3, D4
+      A0 -> top-level sensor (TOP_SENSOR_PIN)
+      A1 -> bottom-level sensor (BOTTOM_SENSOR_PIN)
+      D4 -> wax-ready sensor 2 (WAX2_SENSOR_PIN)
+      D3 -> wax-ready sensor 1 (WAX1_SENSOR_PIN)
 
-    Tank selector: A0..A3 (4-bit binary, normal analogRead interpreted as
-  digital 0/1) Start/Smart button: D2 I2C LCD: A4 (SDA), A5 (SCL)
+    Tank selector: D9..D12 (4-bit binary) Active = HIGH
+
+    Start/Smart button: D2
+
+    I2C LCD: A4 (SDA), A5 (SCL)
 
   Notes / safety:
     - Sensors are treated active when digitalRead == LOW.
@@ -73,8 +76,8 @@ const uint8_t START_BUTTON = 2; // D2
 #define LCD_ADDR 0x27
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
-// ========================= CONFIGURATION & TIME CONSTANTS
-// =========================
+// ========================= CONFIGURATION & TIME CONSTANTS =========================
+
 #ifdef TEST
 const unsigned long ONE_MIN_MS = 1000UL;  // 1 second = 1 "minute" for testing
 const unsigned long MIN_DWELL_MIN = 10UL; // allow 10 seconds in test

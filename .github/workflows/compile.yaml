@@ -26,4 +26,3 @@ jobs:
             - source-url: https://github.com/MicroBeaut/Finite-State.git
           sketch-paths: |
             - TissueProcessor
-          enable-cache: true

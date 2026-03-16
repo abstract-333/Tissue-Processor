@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-        
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v1
       - name: Install board platform
@@ -24,4 +24,4 @@ jobs:
           arduino-cli lib install "LiquidCrystal_I2C"
           arduino-cli lib install "Finite-State"
       - name: Compile sketch
-        run: arduino-cli compile --fqbn arduino:avr:uno TissueProcessor/GlassTag.ino
+        run: arduino-cli compile --fqbn arduino:avr:uno TissueProcessor/TissueProcessor.ino

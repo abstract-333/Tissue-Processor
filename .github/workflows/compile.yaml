@@ -14,15 +14,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
+        
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+      - name: Install board platform
+        run: arduino-cli core install arduino:avr
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "LiquidCrystal_I2C"
+          arduino-cli lib install "Finite-State"
       - name: Compile sketch
-        uses: abstract-333/compile-sketches@v1.1.0
-        with:
-          fqbn: "arduino:avr:uno" 
-          platforms: |
-            - name: "arduino:avr"
-          libraries: |
-            - source-url: https://github.com/johnrickman/LiquidCrystal_I2C.git
-            - source-url: https://github.com/MicroBeaut/Finite-State.git
-          sketch-paths: |
-            - TissueProcessor
+        run: arduino-cli compile --fqbn arduino:avr:uno TissueProcessor/GlassTag.ino

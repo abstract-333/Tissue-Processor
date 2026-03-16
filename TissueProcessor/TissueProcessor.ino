@@ -53,7 +53,6 @@
 #include <Wire.h>
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
-
 // ========================= PIN MAP (as provided) =========================
 // Power outputs
 const uint8_t MOVE_PIN = 8;    // D8 - Processing vibration motor

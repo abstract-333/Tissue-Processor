@@ -30,7 +30,10 @@
 
     Tank selector: D9..D12 (4-bit binary) Active = HIGH
 
-    Start/Smart button: D2
+    Start/Stop button: D2
+    Skip to next tank button: D1
+    Raise/Continue button: D0
+
 
     I2C LCD: A4 (SDA), A5 (SCL)
 
@@ -62,8 +65,8 @@ const uint8_t HEATER2_PIN = 5; // D5 - Heater 2
 // Sesnors &  thermostats (Active LOW: 0 = active)
 const uint8_t SENSOR_TOP = A0;    // A0
 const uint8_t SENSOR_BOTTOM = A1; // A1
-const uint8_t SENSOR_WAX2 = 4;    // D4
 const uint8_t SENSOR_WAX1 = 3;    // D3
+const uint8_t SENSOR_WAX2 = 4;    // D4
 
 // Container ID (B9..B12)
 const uint8_t PIN_ID_BITS[4] = {9, 10, 11, 12}; // bit0 LSB .. bit3 MSB
@@ -537,10 +540,10 @@ bool buttonHeld(uint8_t button, uint32_t duration)
 // FSM state enumeration
 enum MainState : id_t
 {
-    S_VERIFYING = 0,
-    S_UKNOWN_DIRECTION_RE, // TODO
-    S_MIDDLE_RE,           // TODO
-    S_UP_RE,               // TODO
+    S_VERIFYING = 0,             // TODO
+    S_UKNOWN_DIRECTION_RECOVERY, // TODO
+    S_MIDDLE_RECOVERY,           // TODO
+    S_UP_RECOVERY,               // TODO
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
@@ -549,12 +552,28 @@ enum MainState : id_t
     S_RAISING,
     S_UP,
     S_TRANSITIONING,
-    S_STARTING,
+    S_STARTING_NEW_TANK,
     S_LOWERING,
     S_ERROR
 };
 
 // Forward declarations for predicate/process/event functions
+void verifyingProcess(id_t id);
+bool verifyingPredicate(id_t id);
+void verifyingActionChanged(EventArgs e);
+
+void uknownDirectionProcess(id_t id);
+bool uknownDirectionPredicate(id_t id);
+void uknownDirectionActionChanged(EventArgs e);
+
+void middleProcess(id_t id);
+bool middlePredicate(id_t id);
+void middleActionChanged(EventArgs e);
+
+void upRecoveryProcess(id_t id);
+bool upRecoveryPredicate(id_t id);
+void upRecoveryActionChanged(EventArgs e);
+
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
 
@@ -587,15 +606,30 @@ void transitiningActionChanged(EventArgs e);
 void errorActionChanged(EventArgs e);
 
 void preDownActionChanged(EventArgs e);
+
 void preRaisingActionChanged(EventArgs e);
+
 // Transition table - keep it as readable blocks. Use predicate timers where
 // necessary.
 Transition transitions[] = {
-    // S_IDLE: wait start button. When pressed -> CHECK_START
-    {idlePredicate, S_IDLE, S_STARTING, nullptr, idleActionChanged},
+    // S_VERIFYING: if sample is down -> continue as correct behavior
+    //              otherwise enter recovery mode
+    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, verifyingProcess, verifyingActionChanged},
 
-    // S_STARTING: read tank and prepare to start.
-    {startingPredicate, S_IDLE, S_LOWERING, nullptr, startingActionChanged},
+    // S_UKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
+    //                              if not top and not down, so sample is on the middle position
+    {uknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, uknownDirectionProcess, uknownDirectionActionChanged},
+
+    // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
+    //              otherwise start lowing in same tank
+    {upRecoveryPredicate, S_STARTING_NEW_TANK, S_LOWERING, upRecoveryProcess, upRecoveryActionChanged},
+
+    // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
+    //              otherwise start lowing in same tank
+    {middlePredicate, S_STARTING_NEW_TANK, S_LOWERING, middleProcess, middleActionChanged},
+
+    // S_IDLE: wait start button. When pressed -> CHECK_START
+    {idlePredicate, S_IDLE, S_PRE_DOWN, nullptr, idleActionChanged},
 
     // S_LOWERING: run movement motor until bottom sensor active -> if bottom
     // sensor active -> DOWN else ERROR
@@ -635,7 +669,10 @@ Transition transitions[] = {
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
     // logic or to START if finished
-    {transitiningPredicate, S_TRANSITIONING, S_STARTING, nullptr, transitiningActionChanged},
+    {transitiningPredicate, S_TRANSITIONING, S_STARTING_NEW_TANK, nullptr, transitiningActionChanged},
+
+    // S_STARTING_NEW_TANK: read tank and prepare moving down the sample
+    {startingPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, startingActionChanged},
 
     // ERROR (top or down sensors, heat sensors, motor, heaters)
     {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};

@@ -70,6 +70,8 @@ const uint8_t PIN_ID_BITS[4] = {9, 10, 11, 12}; // bit0 LSB .. bit3 MSB
 
 // UI
 const uint8_t START_BUTTON = 2; // D2
+const uint8_t SKIP_BUTTON = 1;  // D1
+const uint8_t RAISE_BUTTON = 0; // D0
 
 // LCD (I2C)
 #define LCD_ADDR 0x27
@@ -535,13 +537,14 @@ bool buttonHeld(uint8_t button, uint32_t duration)
 // FSM state enumeration
 enum MainState : id_t
 {
-    S_IDLE = 0,
+    S_VERIFYING = 0,
+    S_UKNOWN_DIRECTION_RE, // TODO
+    S_MIDDLE_RE,           // TODO
+    S_UP_RE,               // TODO
+    S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
     S_CHECKING,
-    S_RECOVERY_MOVING, // TODO
-    S_RECOVERY_MIDDLE, // TODO
-    S_RECOVERY_UP,     // TODO
     S_PRE_RAISING,
     S_RAISING,
     S_UP,
@@ -1119,6 +1122,9 @@ void setupPins()
     pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
     pinMode(SENSOR_TOP, INPUT_PULLUP);
     pinMode(START_BUTTON, INPUT_PULLUP);
+    pinMode(SKIP_BUTTON, INPUT_PULLUP);
+    pinMode(RAISE_BUTTON, INPUT_PULLUP);
+
     for (uint8_t i = 0; i < 4; i++)
         pinMode(PIN_ID_BITS[i], INPUT);
 }

@@ -536,21 +536,27 @@ bool buttonHeld(uint8_t button, uint32_t duration)
 enum MainState : id_t
 {
     S_IDLE = 0,
-    S_STARTING,
-    S_LOWERING,
     S_PRE_DOWN,
     S_DOWN,
     S_CHECKING,
+    S_RECOVERY_MOVING, // TODO
+    S_RECOVERY_MIDDLE, // TODO
+    S_RECOVERY_UP,     // TODO
     S_PRE_RAISING,
     S_RAISING,
     S_UP,
     S_TRANSITIONING,
+    S_STARTING,
+    S_LOWERING,
     S_ERROR
 };
 
 // Forward declarations for predicate/process/event functions
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
+
+bool checkingPredicate(id_t id);
+void checkingActionChanged(EventArgs e);
 
 bool startingPredicate(id_t id);
 void startingActionChanged(EventArgs e);
@@ -577,7 +583,8 @@ void transitiningActionChanged(EventArgs e);
 
 void errorActionChanged(EventArgs e);
 
-void onActionChanged(EventArgs e);
+void preDownActionChanged(EventArgs e);
+void preRaisingActionChanged(EventArgs e);
 // Transition table - keep it as readable blocks. Use predicate timers where
 // necessary.
 Transition transitions[] = {
@@ -594,16 +601,14 @@ Transition transitions[] = {
     // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
     // state
     // (safe switching between moving and vibrating)
-    {nullptr, S_PRE_DOWN, S_DOWN, nullptr, onActionChanged,
-     MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
+    {nullptr, S_PRE_DOWN, S_DOWN, nullptr, preDownActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
             Conatiner 10 -> Start first heater.
             Container 11 -> Start second heater.
             Container 12 -> If finished then stop vibrating.
             */
-    {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged,
-     TANK_TIME_MS, TRUE_TIMER},
+    {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
             Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down
@@ -615,8 +620,7 @@ Transition transitions[] = {
     // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
     // state
     // (safe switching between moving and vibrating)
-    {nullptr, S_PRE_RAISING, S_RAISING, nullptr, onActionChanged,
-     MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
+    {nullptr, S_PRE_RAISING, S_RAISING, nullptr, preRaisingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     // S_RAISING: run movement up until top sensor active OR timeout -> TOP or
     // ERROR
@@ -628,8 +632,7 @@ Transition transitions[] = {
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
     // logic or to START if finished
-    {transitiningPredicate, S_TRANSITIONING, S_STARTING, nullptr,
-     transitiningActionChanged},
+    {transitiningPredicate, S_TRANSITIONING, S_STARTING, nullptr, transitiningActionChanged},
 
     // ERROR (top or down sensors, heat sensors, motor, heaters)
     {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};
@@ -1026,14 +1029,31 @@ void errorActionChanged(EventArgs e)
     }
 }
 
-void onActionChanged(EventArgs e)
+void preRaisingActionChanged(EventArgs e)
 {
-    if (e.action == EXIT)
+    switch (e.action)
     {
-        startTimeTank = 0;
+    case ENTRY:
         vibOff();
+        break;
+
+    case EXIT:
+        break;
     }
-    return;
+}
+
+void preDownActionChanged(EventArgs e)
+{
+    switch (e.action)
+    {
+    case ENTRY:
+        moveOff();
+        break;
+
+    case EXIT:
+        startTimeTank = 0;
+        break;
+    }
 }
 // Setup and loop
 void handleSensorsFailure()

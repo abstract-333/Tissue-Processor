@@ -128,7 +128,7 @@ bool sensorActive(uint8_t pin) { return digitalRead(pin) == LOW; }
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1
 // (1..16) clamp to 1..12
-void readTankID()
+void syncTankID()
 {
     uint8_t currentRead = 0;
     for (uint8_t i = 0; i < 4; ++i)
@@ -162,11 +162,12 @@ void readTankID()
     tankException = false;
 }
 
-struct DebouncedSensor
+struct DelayedSensor
 {
-    uint8_t pin;
+    const uint8_t pin;
     unsigned long lastLowTime;
     bool stableActive; // Added to store the "last known" state
+    const unsigned long delay;
 
     void update()
     {
@@ -176,10 +177,9 @@ struct DebouncedSensor
         {
             if (lastLowTime == 0)
                 lastLowTime = millis();
-            if (millis() - lastLowTime >= DEBOUNCE_DELAY_MS)
-            {
+
+            if (!stableActive && millis() - lastLowTime >= delay)
                 stableActive = true;
-            }
         }
         else
         {
@@ -192,50 +192,13 @@ struct DebouncedSensor
 };
 
 // Initialize your specific sensors
-DebouncedSensor topLimit = {SENSOR_TOP, 0};
-DebouncedSensor bottomLimit = {SENSOR_BOTTOM, 0};
-DebouncedSensor wax1Ready = {SENSOR_WAX1, 0};
-DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
-
-struct DelayedButton
-{
-    uint8_t pin;
-    unsigned long pressedAt;
-    bool holdHandled;
-
-    void update()
-    {
-        uint8_t state = sensorActive(pin); // Assumes LOW when pressed (INPUT_PULLUP)
-
-        if (state)
-        {
-            if (pressedAt == 0)
-            {
-                // Just started pressing
-                pressedAt = millis();
-                holdHandled = false;
-            }
-            else if (!holdHandled && (millis() - pressedAt >= BUTTON_DELAY_MS))
-            {
-                // Threshold reached!
-                holdHandled = true;
-                pressedAt = 0;
-            }
-        }
-        else
-        {
-            // Button released - reset everything
-            pressedAt = 0;
-            holdHandled = false;
-        }
-    }
-
-    bool isActive() { return holdHandled; }
-};
-
-DelayedButton startButton = {START_BUTTON, 0, false};
-DelayedButton skipButton = {SKIP_BUTTON, 0, false};
-DelayedButton raiseButton = {RAISE_BUTTON, 0, false};
+DelayedSensor topLimit = {SENSOR_TOP, 0};
+DelayedSensor bottomLimit = {SENSOR_BOTTOM, 0};
+DelayedSensor wax1Ready = {SENSOR_WAX1, 0};
+DelayedSensor wax2Ready = {SENSOR_WAX2, 0};
+DelayedSensor startButton = {START_BUTTON, 0, false, BUTTON_DELAY_MS};
+DelayedSensor skipButton = {SKIP_BUTTON, 0, false, BUTTON_DELAY_MS};
+DelayedSensor raiseButton = {RAISE_BUTTON, 0, false, BUTTON_DELAY_MS};
 
 struct TankProfile
 {
@@ -296,6 +259,8 @@ void moveOn()
 
     digitalWrite(MOVE_PIN, HIGH);
     isMoving = true;
+    motorStartTime = millis();
+
     DBGLN("Moving on");
 }
 void moveOff()
@@ -305,6 +270,8 @@ void moveOff()
 
     digitalWrite(MOVE_PIN, LOW);
     isMoving = false;
+    motorStartTime = 0;
+
     DBGLN("Moving off");
 }
 void vibOn()
@@ -537,39 +504,6 @@ void printRemainingTimeForTank(uint8_t tank)
     lcd.print(timeBuffer);
 }
 
-/**
- * Returns true only after the button has been held for 'duration'
- */
-bool buttonHeld(uint8_t button, uint32_t duration)
-{
-    uint8_t state = sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
-
-    if (state)
-    {
-        if (pressedAt == 0)
-        {
-            // Just started pressing
-            pressedAt = millis();
-            holdHandled = false;
-        }
-        else if (!holdHandled && (millis() - pressedAt >= duration))
-        {
-            // Threshold reached!
-            holdHandled = true;
-            pressedAt = 0;
-            return true;
-        }
-    }
-    else
-    {
-        // Button released - reset everything
-        pressedAt = 0;
-        holdHandled = false;
-    }
-
-    return false;
-}
-
 // FSM state enumeration
 enum MainState : id_t
 {
@@ -591,19 +525,15 @@ enum MainState : id_t
 };
 
 // Forward declarations for predicate/process/event functions
-void verifyingProcess(id_t id);
 bool verifyingPredicate(id_t id);
 void verifyingActionChanged(EventArgs e);
 
-void uknownDirectionProcess(id_t id);
 bool uknownDirectionPredicate(id_t id);
 void uknownDirectionActionChanged(EventArgs e);
 
-void middleProcess(id_t id);
 bool middlePredicate(id_t id);
 void middleActionChanged(EventArgs e);
 
-void upRecoveryProcess(id_t id);
 bool upRecoveryPredicate(id_t id);
 void upRecoveryActionChanged(EventArgs e);
 
@@ -647,19 +577,19 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, verifyingProcess, verifyingActionChanged},
+    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged},
 
     // S_UKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
-    {uknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, uknownDirectionProcess, uknownDirectionActionChanged},
+    {uknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, uknownDirectionActionChanged},
 
     // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
-    {upRecoveryPredicate, S_STARTING_NEW_TANK, S_LOWERING, upRecoveryProcess, upRecoveryActionChanged},
+    {upRecoveryPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, upRecoveryActionChanged},
 
     // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
-    {middlePredicate, S_STARTING_NEW_TANK, S_LOWERING, middleProcess, middleActionChanged},
+    {middlePredicate, S_PRE_DOWN, S_UP, nullptr, middleActionChanged},
 
     // S_IDLE: wait start button. When pressed -> CHECK_START
     {idlePredicate, S_IDLE, S_PRE_DOWN, nullptr, idleActionChanged},
@@ -715,6 +645,92 @@ const uint8_t numberOfTransitions = sizeof(transitions) / sizeof(Transition);
 FiniteState fsm(transitions, numberOfTransitions);
 
 // Implementation: Predicates, Processes and Events
+bool verifyingPredicate(id_t id)
+{
+    if (bottomLimit.isActive())
+        return true;
+
+    return false;
+}
+
+void verifyingActionChanged(EventArgs e)
+{
+    if (e.action == ENTRY)
+        syncTankID();
+}
+
+bool uknownDirectionPredicate(id_t id)
+{
+    if (topLimit.isActive())
+        return true;
+
+    return false;
+}
+
+void uknownDirectionActionChanged(EventArgs e)
+{
+    if (e.action == ENTRY)
+        syncTankID();
+}
+
+bool upRecoveryPredicate(id_t id)
+{
+    if (topLimit.isActive() && tankChanged)
+        return false;
+
+    if (!bottomLimit.isActive() && !topLimit.isActive())
+        return false;
+
+    syncTankID();
+}
+
+void upRecoveryActionChanged(EventArgs e)
+{
+    switch (e.action)
+    {
+    case ENTRY:
+        syncTankID();
+
+        if (!isMoving)
+            moveOn();
+
+        lcdShowStatusTank(F("Recovery Up")); // Uses F() to keep text in Flash
+        break;
+
+    case EXIT:
+        DBGLN("Exit Lowering");
+        break;
+    }
+}
+
+bool middlePredicate(id_t id)
+{
+    if (bottomLimit.isActive())
+        return true;
+
+    if (topLimit.isActive())
+        return false;
+}
+
+void middleActionChanged(EventArgs e)
+{
+    switch (e.action)
+    {
+    case ENTRY:
+        syncTankID();
+
+        if (!isMoving)
+            moveOn();
+
+        lcdShowStatusTank(F("Recovery Middle")); // Uses F() to keep text in Flash
+        break;
+
+    case EXIT:
+        DBGLN("Exit Lowering");
+        break;
+    }
+}
+
 bool idlePredicate(id_t id)
 {
     if (startButton.isActive())
@@ -732,7 +748,7 @@ void idleActionChanged(EventArgs e)
     case ENTRY:
         outputsKill();
 
-        readTankID();
+        syncTankID();
         DBGLN("Enter idle");
         lcdShowStatus(F("Status: Idle"), F("Press Start"));
         finished = false;
@@ -775,7 +791,7 @@ void startingActionChanged(EventArgs e)
     {
     case ENTRY:
     {
-        readTankID();
+        syncTankID();
 
         lcdShowStatusTank(F("Starting...")); // Uses F() to keep text in Flash
 
@@ -792,22 +808,11 @@ void startingActionChanged(EventArgs e)
 bool loweringPredicate(id_t id)
 {
     // if bottom sensor active -> true, so move to DOWN
-    if (bottomLimit.isActive() && !topLimit.isActive())
+    if (bottomLimit.isActive())
     {
         moveOff();
-        motorStartTime = 0;
         DBGLN("Reached bottom");
         return true;
-    }
-    // mechanical timeout
-    if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
-    {
-        // timeout -> error
-        moveOff();
-        motorStartTime = 0;
-        DBGLN("Lower timeout -> ERROR");
-        lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
-        fsm.begin(S_ERROR);
     }
 
     return false; // continue lowering
@@ -818,10 +823,8 @@ void loweringActionChanged(EventArgs e)
     {
     case ENTRY:
         if (!isMoving)
-        {
             moveOn();
-            motorStartTime = millis();
-        }
+
         lcdShowStatusTank(F("Lowering..")); // Uses F() to keep text in Flash
         break;
 
@@ -965,7 +968,6 @@ void upProcess(id_t id)
     if (inspection && isMoving)
     {
         moveOff();
-        motorStartTime = 0;
         DBGLN("Top Position");
         DBGLN("Press Run to continue");
         lcdShowStatus(F("Top inspection"), F("Press Run"));
@@ -1007,16 +1009,6 @@ bool raisingPredicate(id_t id)
         DBGLN("Reached Top");
         return true;
     }
-    // mechanical timeout
-    if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
-    {
-        // timeout -> error
-        moveOff();
-        motorStartTime = 0;
-        DBGLN("Raise timeout -> ERROR");
-        lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
-        fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
-    }
 
     return false; // continue Raising
 }
@@ -1028,10 +1020,7 @@ void raisingActionChanged(EventArgs e)
         DBGLN("Raising..");
         // check mechanical timeout
         if (!isMoving)
-        {
             moveOn();
-            motorStartTime = millis();
-        }
 
         lcdShowStatusTank(F("Raising"));
 
@@ -1054,17 +1043,8 @@ bool transitiningPredicate(id_t id)
         lcdShowStatus(F("Critical Error"), F("Top sensor"));
         fsm.begin(S_ERROR); // Top sensor is not active -> Error
     }
-    if (isMoving && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
-    {
-        // timeout -> error
-        moveOff();
-        motorStartTime = 0;
-        DBGLN("Transition timeout -> ERROR");
-        lcdShowStatus(F("Critical Error"), F("Transition timeout"));
-        fsm.begin(S_ERROR); // remain or exit to error as FSM sets state elsewhere
-    }
 
-    readTankID();
+    syncTankID();
 
     return tankChanged;
 }
@@ -1075,10 +1055,7 @@ void transitiningActionChanged(EventArgs e)
     case ENTRY:
         // check mechanical timeout
         if (!isMoving)
-        {
             moveOn();
-            motorStartTime = millis();
-        }
 
         DBGLN("Entering Transition State");
         lcdShowStatus(F("Transition State"), F(""));
@@ -1176,6 +1153,14 @@ void safetyTask()
         lcdShowStatus(F("ERROR"), F("Tank read"));
         fsm.begin(S_ERROR);
     }
+    if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
+    {
+        // timeout -> error
+        moveOff();
+        DBGLN("Motor timeout -> ERROR");
+        lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
+        fsm.begin(S_ERROR);
+    }
 }
 
 void fsmTask() { fsm.execute(); }
@@ -1216,7 +1201,7 @@ void setup()
     Wire.begin();
     lcd.init();
     lcd.backlight();
-    readTankID();
+    syncTankID();
     fsm.begin(S_IDLE);
     wdt_enable(WDTO_2S);
 }

@@ -506,7 +506,7 @@ void printRemainingTimeForTank(uint8_t tank)
 enum MainState : id_t
 {
     S_VERIFYING = 0,
-    S_UKNOWN_DIRECTION_RECOVERY,
+    S_UNKNOWN_DIRECTION_RECOVERY,
     S_MIDDLE_RECOVERY,
     S_UP_RECOVERY,
     S_IDLE,
@@ -526,8 +526,8 @@ enum MainState : id_t
 bool verifyingPredicate(id_t id);
 void verifyingActionChanged(EventArgs e);
 
-bool uknownDirectionPredicate(id_t id);
-void uknownDirectionActionChanged(EventArgs e);
+bool unknownDirectionPredicate(id_t id);
+void unknownDirectionActionChanged(EventArgs e);
 
 bool middlePredicate(id_t id);
 void middleActionChanged(EventArgs e);
@@ -575,11 +575,11 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, TRUE_TIMER},
+    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, TRUE_TIMER},
 
-    // S_UKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
+    // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
-    {uknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, uknownDirectionActionChanged},
+    {unknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, unknownDirectionActionChanged},
 
     // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
@@ -654,7 +654,7 @@ void verifyingActionChanged(EventArgs e)
         syncTankID();
 }
 
-bool uknownDirectionPredicate(id_t id)
+bool unknownDirectionPredicate(id_t id)
 {
     if (topLimit.isActive())
         return false;
@@ -662,7 +662,7 @@ bool uknownDirectionPredicate(id_t id)
     return true;
 }
 
-void uknownDirectionActionChanged(EventArgs e)
+void unknownDirectionActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
         syncTankID();

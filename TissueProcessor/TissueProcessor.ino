@@ -643,9 +643,9 @@ FiniteState fsm(transitions, numberOfTransitions);
 bool verifyingPredicate(id_t id)
 {
     if (bottomLimit.isActive())
-        return true;
+        return false;
 
-    return false;
+    return true;
 }
 
 void verifyingActionChanged(EventArgs e)
@@ -657,9 +657,9 @@ void verifyingActionChanged(EventArgs e)
 bool uknownDirectionPredicate(id_t id)
 {
     if (topLimit.isActive())
-        return true;
+        return false;
 
-    return false;
+    return true;
 }
 
 void uknownDirectionActionChanged(EventArgs e)
@@ -674,7 +674,7 @@ bool upRecoveryPredicate(id_t id)
         return false;
 
     if (!bottomLimit.isActive() && !topLimit.isActive())
-        return false;
+        return true;
 
     syncTankID();
 }
@@ -701,10 +701,10 @@ void upRecoveryActionChanged(EventArgs e)
 bool middlePredicate(id_t id)
 {
     if (bottomLimit.isActive())
-        return true;
+        return false;
 
     if (topLimit.isActive())
-        return false;
+        return true;
 }
 
 void middleActionChanged(EventArgs e)
@@ -765,7 +765,7 @@ void idleActionChanged(EventArgs e)
 bool startingPredicate(id_t id)
 {
     if (!topLimit.isActive())
-        return false;
+        return true;
 
     uint8_t s = getRequiredWaxSensor(lastStableTank);
     if ((s & 1) && !wax1Ready.isActive())
@@ -780,7 +780,7 @@ bool startingPredicate(id_t id)
         fsm.begin(S_ERROR);
     }
 
-    return true;
+    return false;
 }
 
 void startingActionChanged(EventArgs e)
@@ -1012,7 +1012,7 @@ void upActionChanged(EventArgs e)
 bool raisingPredicate(id_t id)
 {
     // if top sensor active -> true to move to TRANSITION
-    if (topLimit.isActive() && !bottomLimit.isActive())
+    if (topLimit.isActive())
     {
         DBGLN("Reached Top");
         return true;
@@ -1106,7 +1106,6 @@ void preDownActionChanged(EventArgs e)
     {
     case ENTRY:
         moveOff();
-
         break;
 
     case EXIT:

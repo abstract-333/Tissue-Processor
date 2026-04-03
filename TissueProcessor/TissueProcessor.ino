@@ -575,7 +575,7 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, FALSE_TIMER},
+    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, TRUE_TIMER},
 
     // S_UKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position

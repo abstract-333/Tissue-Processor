@@ -83,29 +83,23 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL;  // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 10UL; // allow 10 seconds in test
-const unsigned long TANK_TIME_MS =
-    10UL * 1000UL;                                     // stays down for 10 seconds while vibrating
+const unsigned long ONE_MIN_MS = 1000UL;               // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 10UL;              // allow 10 seconds in test
+const unsigned long TANK_TIME_MS = 10UL * 1000UL;      // stays down for 10 seconds while vibrating
 const unsigned long TANK_STABILITY_THRESHOLD = 2000UL; // 2 seconds
-const unsigned long MOVE_TIMEOUT_MS =
-    10UL * 1000UL; // 10 seconds - motion safety timeout
+const unsigned long MOVE_TIMEOUT_MS = 10UL * 1000UL;   // 10 seconds - motion safety timeout
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL; // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;       // production min dwell in minutes
-const unsigned long TANK_TIME_MS =
-    60UL * 60UL * 1000UL;                             // Normaly stays down for 1 hour while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 200UL; // ms
-const unsigned long MOVE_TIMEOUT_MS =
-    30UL * 1000UL; // 30 seconds - motion safety timeout
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
+const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
+const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
+const unsigned long TANK_STABILITY_THRESHOLD = 200UL;    // ms
+const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion safety timeout
 
 #endif
 
-const unsigned long MOTOR_SWITCH_DELAY_MS =
-    1000UL; // 1 second - motor swithc saf
-const unsigned long START_BUTTON_DELAY_MS =
-    2UL * 1000UL;                           // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 20; // debounce time for sensors = 20 ms
+const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL; // 1 second - motor swithc saf
+const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL; // Idle state - 2 seconds
+const unsigned long DEBOUNCE_DELAY_MS = 20;         // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
 
 // Program variables
@@ -202,6 +196,46 @@ DebouncedSensor topLimit = {SENSOR_TOP, 0};
 DebouncedSensor bottomLimit = {SENSOR_BOTTOM, 0};
 DebouncedSensor wax1Ready = {SENSOR_WAX1, 0};
 DebouncedSensor wax2Ready = {SENSOR_WAX2, 0};
+
+struct DelayedButton
+{
+    uint8_t pin;
+    unsigned long pressedAt;
+    bool holdHandled;
+
+    void update()
+    {
+        uint8_t state = sensorActive(pin); // Assumes LOW when pressed (INPUT_PULLUP)
+
+        if (state)
+        {
+            if (pressedAt == 0)
+            {
+                // Just started pressing
+                pressedAt = millis();
+                holdHandled = false;
+            }
+            else if (!holdHandled && (millis() - pressedAt >= BUTTON_DELAY_MS))
+            {
+                // Threshold reached!
+                holdHandled = true;
+                pressedAt = 0;
+            }
+        }
+        else
+        {
+            // Button released - reset everything
+            pressedAt = 0;
+            holdHandled = false;
+        }
+    }
+
+    bool isActive() { return holdHandled; }
+};
+
+DelayedButton startButton = {START_BUTTON, 0, false};
+DelayedButton skipButton = {SKIP_BUTTON, 0, false};
+DelayedButton raiseButton = {RAISE_BUTTON, 0, false};
 
 struct TankProfile
 {
@@ -508,8 +542,7 @@ void printRemainingTimeForTank(uint8_t tank)
  */
 bool buttonHeld(uint8_t button, uint32_t duration)
 {
-    uint8_t state =
-        sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
+    uint8_t state = sensorActive(button); // Assumes LOW when pressed (INPUT_PULLUP)
 
     if (state)
     {
@@ -684,7 +717,7 @@ FiniteState fsm(transitions, numberOfTransitions);
 // Implementation: Predicates, Processes and Events
 bool idlePredicate(id_t id)
 {
-    if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+    if (startButton.isActive())
     {
         DBGLN("Start button pressed");
         return true;
@@ -806,7 +839,7 @@ bool downPredicate(id_t id)
         fsm.begin(S_ERROR);
     }
 
-    if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+    if (startButton.isActive())
     {
         vibOff();
         inspection = true;
@@ -945,7 +978,7 @@ bool upPredicate(id_t id)
     if (!inspection)
         return true;
 
-    if (buttonHeld(START_BUTTON, START_BUTTON_DELAY_MS))
+    if (startButton.isActive())
     {
         inspection = false;
         return false;
@@ -1120,6 +1153,12 @@ void sensorTask()
     wax1Ready.update();
     wax2Ready.update();
 }
+void buttonsTask()
+{
+    startButton.update();
+    skipButton.update();
+    raiseButton.update();
+}
 
 void safetyTask()
 {
@@ -1196,6 +1235,7 @@ void loop()
 
         wdt_reset();
         sensorTask();
+        buttonsTask();
         safetyTask();
         fsmTask();
 

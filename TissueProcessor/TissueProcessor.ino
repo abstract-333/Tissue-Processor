@@ -142,8 +142,7 @@ void syncTankID()
         tankStabilityTime = millis();
         tankChanged = false;
     }
-    else if (lastStableTank != pendingTank &&
-             (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+    else if (lastStableTank != pendingTank && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
     {
         if (pendingTank < 1 || pendingTank > 12)
         {
@@ -610,23 +609,20 @@ Transition transitions[] = {
     {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Container 1..10 -> continue to raise state
-            Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the down
-       state. Conatiner 10 -> Renter if first wax sensor is not ready. Conatiner
-       11 -> Renter if first wax sensor is not ready.
+            Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the downstate.
+            Conatiner 10 -> Renter if first wax sensor is not ready.
+            Conatiner 11 -> Renter if first wax sensor is not ready.
             */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, nullptr, checkingActionChanged},
 
-    // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
-    // state
+    // S_PRE_RAISING: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next state
     // (safe switching between moving and vibrating)
     {nullptr, S_PRE_RAISING, S_RAISING, nullptr, preRaisingActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
-    // S_RAISING: run movement up until top sensor active OR timeout -> TOP or
-    // ERROR
+    // S_RAISING: run movement up until top sensor active OR timeout -> TOP or ERROR
     {raisingPredicate, S_RAISING, S_UP, nullptr, raisingActionChanged},
 
     // S_UP: wait if insepction is acitvitated, otherwise proceed to transition state
-    //
     {upPredicate, S_UP, S_TRANSITIONING, upProcess, upActionChanged},
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
@@ -1215,7 +1211,7 @@ void setup()
     lcd.init();
     lcd.backlight();
     syncTankID();
-    fsm.begin(S_IDLE);
+    fsm.begin(S_VERIFYING);
     wdt_enable(WDTO_2S);
 }
 

@@ -98,6 +98,7 @@ const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion 
 #endif
 
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL; // 1 second - motor swithc saf
+const unsigned long VERIFICATION_DELAY_MS = 2UL * 1000UL;
 const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL; // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;         // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
@@ -507,10 +508,10 @@ void printRemainingTimeForTank(uint8_t tank)
 // FSM state enumeration
 enum MainState : id_t
 {
-    S_VERIFYING = 0,             // TODO
-    S_UKNOWN_DIRECTION_RECOVERY, // TODO
-    S_MIDDLE_RECOVERY,           // TODO
-    S_UP_RECOVERY,               // TODO
+    S_VERIFYING = 0,
+    S_UKNOWN_DIRECTION_RECOVERY,
+    S_MIDDLE_RECOVERY,
+    S_UP_RECOVERY,
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
@@ -577,7 +578,7 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged},
+    {verifyingPredicate, S_IDLE, S_UKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, FALSE_TIMER},
 
     // S_UKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
@@ -626,8 +627,8 @@ Transition transitions[] = {
     // ERROR
     {raisingPredicate, S_RAISING, S_UP, nullptr, raisingActionChanged},
 
-    // S_UP: wait if insepction is acitvitated, otherwise proceed to transition
-    // state
+    // S_UP: wait if insepction is acitvitated, otherwise proceed to transition state
+    //
     {upPredicate, S_UP, S_TRANSITIONING, upProcess, upActionChanged},
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
@@ -738,6 +739,14 @@ bool idlePredicate(id_t id)
         DBGLN("Start button pressed");
         return true;
     }
+    if (skipButton.isActive())
+    {
+        vibOff();
+        DBGLN("Raising to top");
+        lcdShowStatus(F("Skip tank"), F("Raising..."));
+        fsm.begin(S_RAISING);
+    }
+
     return false;
 }
 
@@ -766,7 +775,6 @@ bool startingPredicate(id_t id)
         lcdShowStatus(F("Critical Error"), F("Top sensor"));
         fsm.begin(S_ERROR); // Top sensor is not active -> Error
     }
-    bool waxReady = true;
     uint8_t s = getRequiredWaxSensor(lastStableTank);
     if ((s & 1) && !wax1Ready.isActive())
     {
@@ -836,19 +844,26 @@ void loweringActionChanged(EventArgs e)
 
 bool downPredicate(id_t id)
 {
-    if (!bottomLimit.isActive() || topLimit.isActive())
+    if (!bottomLimit.isActive())
     {
         lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
         fsm.begin(S_ERROR);
     }
 
-    if (startButton.isActive())
+    if (skipButton.isActive() || raiseButton.isActive())
     {
         vibOff();
-        inspection = true;
+        inspection = raiseButton.isActive();
         DBGLN("Raising to top");
         lcdShowStatus(F("Button Pressed"), F("Raising..."));
         return false;
+    }
+    if (startButton.isActive())
+    {
+        vibOff();
+        moveOff();
+        lcdShowStatus(F("Button pressed"), F("Go to idle"));
+        fsm.begin(S_IDLE);
     }
     if (waitingWaxMelt)
     {
@@ -980,7 +995,7 @@ bool upPredicate(id_t id)
     if (!inspection)
         return true;
 
-    if (startButton.isActive())
+    if (raiseButton.isActive())
     {
         inspection = false;
         return false;

@@ -106,7 +106,6 @@ const uint8_t TANK_12 = 12;
 // Program variables
 unsigned long startTimeTank = 0;  // for time in tank
 unsigned long motorStartTime = 0; // for mechanical timeout
-unsigned long pressedAt = 0;      // for press button
 uint8_t lastStableTank = 1;
 uint8_t pendingTank = 1;
 uint8_t currentCycle = 1;
@@ -114,7 +113,6 @@ unsigned long tankStabilityTime = 0;
 unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tank...
 bool finished = false;               // Cycle finished
 bool inspection = false;             // Inspection activated
-bool holdHandled = false;            // If we processed the button
 bool tankChanged = false;
 bool isMoving = false;    // true = ON
 bool isVibrating = false; // true = ON
@@ -771,10 +769,8 @@ void idleActionChanged(EventArgs e)
 bool startingPredicate(id_t id)
 {
     if (!topLimit.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("Top sensor"));
-        fsm.begin(S_ERROR); // Top sensor is not active -> Error
-    }
+        return false;
+
     uint8_t s = getRequiredWaxSensor(lastStableTank);
     if ((s & 1) && !wax1Ready.isActive())
     {
@@ -787,8 +783,6 @@ bool startingPredicate(id_t id)
         DBGLN("Critical error container 12 without melted wax");
         fsm.begin(S_ERROR);
     }
-    if (finished)
-        return false; // Finished cycle -> false
 
     return true;
 }
@@ -815,6 +809,9 @@ void startingActionChanged(EventArgs e)
 
 bool loweringPredicate(id_t id)
 {
+    if (bottomLimit.isActive() && finished)
+        fsm.begin(S_IDLE);
+
     // if bottom sensor active -> true, so move to DOWN
     if (bottomLimit.isActive())
     {
@@ -1113,6 +1110,7 @@ void preDownActionChanged(EventArgs e)
     {
     case ENTRY:
         moveOff();
+
         break;
 
     case EXIT:

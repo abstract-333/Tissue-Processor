@@ -177,19 +177,19 @@ struct DelayedSensor
                 lastActiveTime = millis();
 
             if (!stableActive && millis() - lastActiveTime >= delay)
-            {
                 stableActive = true;
-                lastActiveTime = 0;
-            }
         }
         else
-        {
-            lastActiveTime = 0;
-            stableActive = false;
-        }
+            reset();
     }
 
-    bool isActive() { return stableActive; }
+    inline bool isActive() { return stableActive; }
+
+    void reset()
+    {
+        stableActive = false;
+        lastActiveTime = 0;
+    }
 };
 
 // Initialize your specific sensors
@@ -736,11 +736,13 @@ bool idlePredicate(id_t id)
     if (startButton.isActive())
     {
         DBGLN("Start button pressed");
+        startButton.reset();
         return true;
     }
     if (skipButton.isActive())
     {
         vibOff();
+        skipButton.reset();
         DBGLN("Raising to top");
         lcdShowStatus(F("Skip tank"), F("Raising..."));
         fsm.begin(S_RAISING);
@@ -852,6 +854,8 @@ bool downPredicate(id_t id)
     {
         vibOff();
         inspection = raiseButton.isActive();
+        raiseButton.reset();
+        skipButton.reset();
         DBGLN("Raising to top");
         lcdShowStatus(F("Button Pressed"), F("Raising..."));
         return false;
@@ -860,6 +864,7 @@ bool downPredicate(id_t id)
     {
         vibOff();
         moveOff();
+        startButton.reset();
         lcdShowStatus(F("Button pressed"), F("Go to idle"));
         fsm.begin(S_IDLE);
     }
@@ -996,6 +1001,7 @@ bool upPredicate(id_t id)
     if (raiseButton.isActive())
     {
         inspection = false;
+        raiseButton.reset();
         return false;
     }
     return false;

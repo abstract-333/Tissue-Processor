@@ -348,8 +348,7 @@ void outputsKill()
 
 // Helper for F() strings
 void lcdPrintPadded(
-    const __FlashStringHelper
-        *text)
+    const __FlashStringHelper *text)
 { // 16 characters + 1 for the null terminator '\0'
     char lcdBuffer[17];
 
@@ -590,7 +589,7 @@ Transition transitions[] = {
 
     // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
-    {upRecoveryPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, upRecoveryActionChanged},
+    {upRecoveryPredicate, S_UP_RECOVERY, S_STARTING_NEW_TANK, nullptr, upRecoveryActionChanged},
 
     // S_IDLE: wait start button. When pressed -> CHECK_START
     {idlePredicate, S_IDLE, S_PRE_DOWN, nullptr, idleActionChanged},
@@ -673,13 +672,26 @@ void unknownDirectionActionChanged(EventArgs e)
 
 bool upRecoveryPredicate(id_t id)
 {
-    if (topLimit.isActive() && tankChanged)
-        return false;
+    syncTankID();
 
-    if (!bottomLimit.isActive() && !topLimit.isActive())
+    if (topLimit.isActive() && tankChanged)
         return true;
 
-    syncTankID();
+    uint8_t s = getRequiredWaxSensor(lastStableTank);
+    if ((s & 1) && !wax1Ready.isActive())
+    {
+        lcdShowStatus(F("Critical Error"), F("H1 or S1"));
+        fsm.begin(S_ERROR);
+    }
+    if ((s & 2) && !wax2Ready.isActive())
+    {
+        lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
+        DBGLN("Critical error container 12 without melted wax");
+        fsm.begin(S_ERROR);
+    }
+
+    if (!bottomLimit.isActive() && !topLimit.isActive())
+        fsm.begin(S_LOWERING);
 }
 
 void upRecoveryActionChanged(EventArgs e)
@@ -689,8 +701,7 @@ void upRecoveryActionChanged(EventArgs e)
     case ENTRY:
         syncTankID();
 
-        if (!isMoving)
-            moveOn();
+        moveOn();
 
         lcdShowStatusTank(F("Recovery Up")); // Uses F() to keep text in Flash
         break;
@@ -760,9 +771,17 @@ void idleActionChanged(EventArgs e)
 
         syncTankID();
         DBGLN("Enter idle");
-        lcdShowStatus(F("Status: Idle"), F("Press Start"));
-        finished = false;
+
+        if (finished)
+            lcdShowStatus(F("Status: Finished"), F("Press Raise"));
+        else
+            lcdShowStatus(F("Status: Idle"), F("Press Start"));
+
+        if (lastStableTank != 12)
+            finished = false;
+
         break;
+
     case EXIT:
         DBGLN("Exit idle");
         break;
@@ -830,8 +849,7 @@ void loweringActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
-        if (!isMoving)
-            moveOn();
+        moveOn();
 
         lcdShowStatusTank(F("Lowering..")); // Uses F() to keep text in Flash
         break;
@@ -893,7 +911,7 @@ void downProcess(id_t id)
             DBGLN("Finished");
             DBGLN("Press Run to continue...");
         }
-        return;
+        fsm.begin(S_IDLE);
     }
 
     vibOn();
@@ -915,9 +933,7 @@ void downActionChanged(EventArgs e)
             startTimeTank = millis();
 
         if (waitingWaxMelt)
-        {
             lcdShowStatusTank(F("Waiting Wax"));
-        }
 
         manageHeaters(lastStableTank);
 
@@ -1037,9 +1053,7 @@ void raisingActionChanged(EventArgs e)
     {
     case ENTRY:
         DBGLN("Raising..");
-        // check mechanical timeout
-        if (!isMoving)
-            moveOn();
+        moveOn();
 
         lcdShowStatusTank(F("Raising"));
 
@@ -1072,9 +1086,7 @@ void transitiningActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
-        // check mechanical timeout
-        if (!isMoving)
-            moveOn();
+        moveOn();
 
         DBGLN("Entering Transition State");
         lcdShowStatus(F("Transition State"), F(""));

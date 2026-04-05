@@ -163,7 +163,7 @@ void syncTankID()
 struct DelayedSensor
 {
     const uint8_t pin;
-    unsigned long lastLowTime;
+    unsigned long lastActiveTime;
     bool stableActive; // Added to store the "last known" state
     const unsigned long delay;
 
@@ -173,15 +173,18 @@ struct DelayedSensor
 
         if (rawReading)
         {
-            if (lastLowTime == 0)
-                lastLowTime = millis();
+            if (lastActiveTime == 0)
+                lastActiveTime = millis();
 
-            if (!stableActive && millis() - lastLowTime >= delay)
+            if (!stableActive && millis() - lastActiveTime >= delay)
+            {
                 stableActive = true;
+                lastActiveTime = 0;
+            }
         }
         else
         {
-            lastLowTime = 0;
+            lastActiveTime = 0;
             stableActive = false;
         }
     }
@@ -575,26 +578,22 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, TRUE_TIMER},
+    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
 
     // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
     {unknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, unknownDirectionActionChanged},
 
+    // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
+    //              otherwise start lowing in same tank
+    {middlePredicate, S_MIDDLE_RECOVERY, S_UP, nullptr, middleActionChanged},
+
     // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
     {upRecoveryPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, upRecoveryActionChanged},
 
-    // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
-    //              otherwise start lowing in same tank
-    {middlePredicate, S_PRE_DOWN, S_UP, nullptr, middleActionChanged},
-
     // S_IDLE: wait start button. When pressed -> CHECK_START
     {idlePredicate, S_IDLE, S_PRE_DOWN, nullptr, idleActionChanged},
-
-    // S_LOWERING: run movement motor until bottom sensor active -> if bottom
-    // sensor active -> DOWN else ERROR
-    {loweringPredicate, S_LOWERING, S_PRE_DOWN, nullptr, loweringActionChanged},
 
     // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
     // state
@@ -631,6 +630,10 @@ Transition transitions[] = {
 
     // S_STARTING_NEW_TANK: read tank and prepare moving down the sample
     {startingPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, startingActionChanged},
+
+    // S_LOWERING: run movement motor until bottom sensor active -> if bottom
+    // sensor active -> DOWN else ERROR
+    {loweringPredicate, S_LOWERING, S_PRE_DOWN, nullptr, loweringActionChanged},
 
     // ERROR (top or down sensors, heat sensors, motor, heaters)
     {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};
@@ -701,10 +704,12 @@ void upRecoveryActionChanged(EventArgs e)
 bool middlePredicate(id_t id)
 {
     if (bottomLimit.isActive())
-        return false;
+        fsm.begin(S_PRE_DOWN);
 
     if (topLimit.isActive())
         return true;
+
+    return false;
 }
 
 void middleActionChanged(EventArgs e)

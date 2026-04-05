@@ -147,7 +147,6 @@ void syncTankID()
         if (pendingTank < 1 || pendingTank > 12)
         {
             tankException = true;
-            // Only print on change to avoid flooding serial
             DBG("Wrong Tank ID: ");
             DBGLN(currentRead);
             return;
@@ -654,6 +653,8 @@ void verifyingActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
         syncTankID();
+    if (e.action == EXIT)
+        tankChanged = false;
 }
 
 bool unknownDirectionPredicate(id_t id)
@@ -770,6 +771,7 @@ void idleActionChanged(EventArgs e)
         outputsKill();
 
         syncTankID();
+        tankChanged = false;
         DBGLN("Enter idle");
 
         if (finished)

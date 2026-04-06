@@ -812,9 +812,6 @@ void startingActionChanged(EventArgs e)
 
 bool loweringPredicate(id_t id)
 {
-    if (bottomLimit.isActive() && finished)
-        fsm.begin(S_IDLE);
-
     // if bottom sensor active -> true, so move to DOWN
     if (bottomLimit.isActive())
     {
@@ -883,11 +880,9 @@ bool downPredicate(id_t id)
 }
 void downProcess(id_t id)
 {
-    if (lastStableTank == TANK_12 && finished)
+    if (finished)
     {
-        if (isVibrating)
-            vibOff();
-
+        vibOff();
         fsm.begin(S_IDLE);
         return;
     }

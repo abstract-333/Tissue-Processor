@@ -761,10 +761,12 @@ bool idlePredicate(id_t id)
 }
 void idleProcess(id_t id)
 {
-    if (skipButton.isActive())
+    if (skipButton.isActive() || raiseButton.isActive())
     {
         vibOff();
+        inspection = raiseButton.isActive();
         skipButton.reset();
+        raiseButton.reset();
         DBGLN("Raising to top");
         lcdShowStatus(F("Skip tank"), F("Raising..."));
         fsm.begin(S_RAISING);

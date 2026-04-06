@@ -531,13 +531,16 @@ bool unknownDirectionPredicate(id_t id);
 void unknownDirectionActionChanged(EventArgs e);
 
 bool middlePredicate(id_t id);
+void middleProcess(id_t id);
 void middleActionChanged(EventArgs e);
 
 bool upRecoveryPredicate(id_t id);
 void upRecoveryActionChanged(EventArgs e);
+void UpRecoveryProcess(id_t id);
 
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
+void idleProcess(id_t id);
 
 bool checkingPredicate(id_t id);
 void checkingActionChanged(EventArgs e);
@@ -562,8 +565,9 @@ void raisingActionChanged(EventArgs e);
 bool checkingPredicate(id_t id);
 void checkingActionChanged(EventArgs e);
 
-bool transitiningPredicate(id_t id);
-void transitiningActionChanged(EventArgs e);
+bool transitioningPredicate(id_t id);
+void transitioningProcess(id_t id);
+void transitioningActionChanged(EventArgs e);
 
 void errorActionChanged(EventArgs e);
 
@@ -584,14 +588,14 @@ Transition transitions[] = {
 
     // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
-    {middlePredicate, S_MIDDLE_RECOVERY, S_UP, nullptr, middleActionChanged},
+    {middlePredicate, S_MIDDLE_RECOVERY, S_UP, middleProcess, middleActionChanged},
 
     // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
-    {upRecoveryPredicate, S_UP_RECOVERY, S_STARTING_NEW_TANK, nullptr, upRecoveryActionChanged},
+    {upRecoveryPredicate, S_UP_RECOVERY, S_STARTING_NEW_TANK, UpRecoveryProcess, upRecoveryActionChanged},
 
     // S_IDLE: wait start button. When pressed -> CHECK_START
-    {idlePredicate, S_IDLE, S_PRE_DOWN, nullptr, idleActionChanged},
+    {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
 
     // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
     // state
@@ -624,7 +628,7 @@ Transition transitions[] = {
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
     // logic or to START if finished
-    {transitiningPredicate, S_TRANSITIONING, S_STARTING_NEW_TANK, nullptr, transitiningActionChanged},
+    {transitioningPredicate, S_TRANSITIONING, S_STARTING_NEW_TANK, transitioningProcess, transitioningActionChanged},
 
     // S_STARTING_NEW_TANK: read tank and prepare moving down the sample
     {startingPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, startingActionChanged},
@@ -681,10 +685,14 @@ bool upRecoveryPredicate(id_t id)
     if (topLimit.isActive() && tankChanged)
         return true;
 
+    return false;
+}
+
+void UpRecoveryProcess(id_t id)
+{
     if (!bottomLimit.isActive() && !topLimit.isActive())
         fsm.begin(S_LOWERING);
-
-    return false;
+    return;
 }
 
 void upRecoveryActionChanged(EventArgs e)
@@ -707,13 +715,18 @@ void upRecoveryActionChanged(EventArgs e)
 
 bool middlePredicate(id_t id)
 {
-    if (bottomLimit.isActive())
-        fsm.begin(S_PRE_DOWN);
-
     if (topLimit.isActive())
         return true;
 
     return false;
+}
+
+void middleProcess(id_t id)
+{
+    if (bottomLimit.isActive())
+        fsm.begin(S_PRE_DOWN);
+
+    return;
 }
 
 void middleActionChanged(EventArgs e)
@@ -743,6 +756,11 @@ bool idlePredicate(id_t id)
         startButton.reset();
         return true;
     }
+
+    return false;
+}
+void idleProcess(id_t id)
+{
     if (skipButton.isActive())
     {
         vibOff();
@@ -750,11 +768,9 @@ bool idlePredicate(id_t id)
         DBGLN("Raising to top");
         lcdShowStatus(F("Skip tank"), F("Raising..."));
         fsm.begin(S_RAISING);
+        return;
     }
-
-    return false;
 }
-
 void idleActionChanged(EventArgs e)
 {
     switch (e.action)
@@ -840,12 +856,6 @@ void loweringActionChanged(EventArgs e)
 
 bool downPredicate(id_t id)
 {
-    if (!bottomLimit.isActive())
-    {
-        lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
-        fsm.begin(S_ERROR);
-    }
-
     if (skipButton.isActive() || raiseButton.isActive())
     {
         vibOff();
@@ -855,14 +865,6 @@ bool downPredicate(id_t id)
         DBGLN("Raising to top");
         lcdShowStatus(F("Button Pressed"), F("Raising..."));
         return false;
-    }
-    if (startButton.isActive())
-    {
-        vibOff();
-        moveOff();
-        startButton.reset();
-        lcdShowStatus(F("Button pressed"), F("Go to idle"));
-        fsm.begin(S_IDLE);
     }
     if (waitingWaxMelt)
     {
@@ -880,13 +882,28 @@ bool downPredicate(id_t id)
 }
 void downProcess(id_t id)
 {
+    if (!bottomLimit.isActive())
+    {
+        lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
+        fsm.begin(S_ERROR);
+        return;
+    }
+
     if (finished)
     {
         vibOff();
         fsm.begin(S_IDLE);
         return;
     }
-
+    if (startButton.isActive())
+    {
+        vibOff();
+        moveOff();
+        startButton.reset();
+        lcdShowStatus(F("Button pressed"), F("Go to idle"));
+        fsm.begin(S_IDLE);
+        return;
+    }
     vibOn();
 
     if (waitingWaxMelt)
@@ -1041,19 +1058,25 @@ void raisingActionChanged(EventArgs e)
     }
 }
 
-bool transitiningPredicate(id_t id)
+bool transitioningPredicate(id_t id)
+{
+    syncTankID();
+
+    return tankChanged;
+}
+
+void transitioningProcess(id_t id)
 {
     if (!topLimit.isActive())
     {
         lcdShowStatus(F("Critical Error"), F("Top sensor"));
         fsm.begin(S_ERROR); // Top sensor is not active -> Error
+        return;
     }
-
-    syncTankID();
-
-    return tankChanged;
+    return;
 }
-void transitiningActionChanged(EventArgs e)
+
+void transitioningActionChanged(EventArgs e)
 {
     switch (e.action)
     {
@@ -1176,12 +1199,14 @@ void verifyWaxConditions()
     {
         lcdShowStatus(F("Critical Error"), F("H1 or S1"));
         fsm.begin(S_ERROR);
+        return;
     }
     if ((s & 2) && !wax2Ready.isActive())
     {
         lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
         DBGLN("Critical error container 12 without melted wax");
         fsm.begin(S_ERROR);
+        return;
     }
 }
 void fsmTask() { fsm.execute(); }
@@ -1242,8 +1267,8 @@ void loop()
         wdt_reset();
         sensorTask();
         buttonsTask();
-        safetyTask();
         verifyWaxConditions();
+        safetyTask();
         fsmTask();
 
 #ifdef DEBUG

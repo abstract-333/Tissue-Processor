@@ -652,7 +652,10 @@ bool verifyingPredicate(id_t id)
 void verifyingActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
+    {
         syncTankID();
+        lcdShowStatus(F("Initilizaing"), F("Wait 3 seconds"));
+    }
     if (e.action == EXIT)
         tankChanged = false;
 }
@@ -678,21 +681,10 @@ bool upRecoveryPredicate(id_t id)
     if (topLimit.isActive() && tankChanged)
         return true;
 
-    uint8_t s = getRequiredWaxSensor(lastStableTank);
-    if ((s & 1) && !wax1Ready.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("H1 or S1"));
-        fsm.begin(S_ERROR);
-    }
-    if ((s & 2) && !wax2Ready.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
-        DBGLN("Critical error container 12 without melted wax");
-        fsm.begin(S_ERROR);
-    }
-
     if (!bottomLimit.isActive() && !topLimit.isActive())
         fsm.begin(S_LOWERING);
+
+    return false;
 }
 
 void upRecoveryActionChanged(EventArgs e)
@@ -795,19 +787,6 @@ bool startingPredicate(id_t id)
     if (!topLimit.isActive())
         return true;
 
-    uint8_t s = getRequiredWaxSensor(lastStableTank);
-    if ((s & 1) && !wax1Ready.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("H1 or S1"));
-        fsm.begin(S_ERROR);
-    }
-    if ((s & 2) && !wax2Ready.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
-        DBGLN("Critical error container 12 without melted wax");
-        fsm.begin(S_ERROR);
-    }
-
     return false;
 }
 
@@ -907,13 +886,10 @@ void downProcess(id_t id)
     if (lastStableTank == TANK_12 && finished)
     {
         if (isVibrating)
-        {
             vibOff();
-            lcdShowStatus(F("Finished"), F("Press Run..."));
-            DBGLN("Finished");
-            DBGLN("Press Run to continue...");
-        }
+
         fsm.begin(S_IDLE);
+        return;
     }
 
     vibOn();
@@ -1009,7 +985,6 @@ void upProcess(id_t id)
         lcdShowStatus(F("Top inspection"), F("Press Run"));
         return;
     }
-    return;
 }
 bool upPredicate(id_t id)
 {
@@ -1179,12 +1154,14 @@ void safetyTask()
     {
         lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
         fsm.begin(S_ERROR);
+        return;
     }
 
     if (tankException)
     {
         lcdShowStatus(F("ERROR"), F("Tank read"));
         fsm.begin(S_ERROR);
+        return;
     }
     if (motorStartTime && (millis() - motorStartTime > MOVE_TIMEOUT_MS))
     {
@@ -1193,9 +1170,25 @@ void safetyTask()
         DBGLN("Motor timeout -> ERROR");
         lcdShowStatus(F("ERROR"), F("MOTOR OVER TIME"));
         fsm.begin(S_ERROR);
+        return;
     }
 }
 
+void verifyWaxConditions()
+{
+    uint8_t s = getRequiredWaxSensor(lastStableTank);
+    if ((s & 1) && !wax1Ready.isActive())
+    {
+        lcdShowStatus(F("Critical Error"), F("H1 or S1"));
+        fsm.begin(S_ERROR);
+    }
+    if ((s & 2) && !wax2Ready.isActive())
+    {
+        lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
+        DBGLN("Critical error container 12 without melted wax");
+        fsm.begin(S_ERROR);
+    }
+}
 void fsmTask() { fsm.execute(); }
 
 // ========================= SETUP & LOOP =========================
@@ -1255,6 +1248,7 @@ void loop()
         sensorTask();
         buttonsTask();
         safetyTask();
+        verifyWaxConditions();
         fsmTask();
 
 #ifdef DEBUG

@@ -263,6 +263,7 @@ void moveOn()
 
     DBGLN("Moving on");
 }
+
 void moveOff()
 {
     if (!isMoving)
@@ -274,6 +275,7 @@ void moveOff()
 
     DBGLN("Moving off");
 }
+
 void vibOn()
 {
     if (isVibrating)
@@ -283,6 +285,7 @@ void vibOn()
     isVibrating = true;
     DBGLN("Vibrating on");
 }
+
 void vibOff()
 {
     if (!isVibrating)
@@ -302,6 +305,7 @@ void heaterOn1()
     isHeating1 = true;
     DBGLN("Start First Heater");
 }
+
 void heaterOn2()
 {
     if (isHeating2)
@@ -311,6 +315,7 @@ void heaterOn2()
     isHeating2 = true;
     DBGLN("Start Second Heater");
 }
+
 void heaterOff1()
 {
     if (!isHeating1)
@@ -320,6 +325,7 @@ void heaterOff1()
     isHeating1 = false;
     DBGLN("Stop First Heater");
 }
+
 void heaterOff2()
 {
     if (!isHeating2)
@@ -1196,6 +1202,9 @@ void safetyTask()
 
 void verifyWaxConditions()
 {
+    if (fsm.id == S_ERROR)
+        return;
+
     uint8_t s = getRequiredWaxSensor(lastStableTank);
     if ((s & 1) && !wax1Ready.isActive())
     {
@@ -1268,9 +1277,9 @@ void loop()
 
         wdt_reset();
         sensorTask();
+        safetyTask();
         buttonsTask();
         verifyWaxConditions();
-        safetyTask();
         fsmTask();
 
 #ifdef DEBUG

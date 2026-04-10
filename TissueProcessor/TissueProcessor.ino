@@ -62,13 +62,13 @@ const uint8_t MOVE_PIN = 8;    // D8 - Processing vibration motor
 const uint8_t VIB_PIN = 7;     // D7 - Relay enable for AC motor
 const uint8_t HEATER1_PIN = 6; // D6  - Heater 1
 const uint8_t HEATER2_PIN = 5; // D5 - Heater 2
-// Sesnors &  thermostats (Active LOW: 0 = active)
+// Sensors &  thermostats (Active LOW: 0 = active)
 const uint8_t SENSOR_TOP = A0;    // A0
 const uint8_t SENSOR_BOTTOM = A1; // A1
 const uint8_t SENSOR_WAX1 = 3;    // D3
 const uint8_t SENSOR_WAX2 = 4;    // D4
 
-// Container ID (B9..B12)
+// Tank ID (B9..B12)
 const uint8_t PIN_ID_BITS[4] = {9, 10, 11, 12}; // bit0 LSB .. bit3 MSB
 
 // UI
@@ -111,6 +111,7 @@ uint8_t pendingTank = 1;
 uint8_t currentCycle = 1;
 unsigned long tankStabilityTime = 0;
 unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tank...
+bool freshStart = true;              // First time started
 bool finished = false;               // Cycle finished
 bool inspection = false;             // Inspection activated
 bool tankChanged = false;
@@ -135,8 +136,22 @@ void syncTankID()
         uint8_t v = digitalRead(PIN_ID_BITS[i]);
         currentRead |= (v << i);
     }
-
-    if (currentRead != pendingTank)
+    if (freshStart)
+    {
+        if (pendingTank < 1 || pendingTank > 12)
+        {
+            tankException = true;
+            DBG("Wrong Tank ID: ");
+            DBGLN(currentRead);
+            return;
+        }
+        // If we start the machine for the first time, it should initialize immediately
+        freshStart = false;
+        pendingTank = currentRead;
+        lastStableTank = currentRead;
+        tankChanged = false;
+    }
+    else if (currentRead != pendingTank)
     {
         pendingTank = currentRead;
         tankStabilityTime = millis();
@@ -609,16 +624,16 @@ Transition transitions[] = {
     {nullptr, S_PRE_DOWN, S_DOWN, nullptr, preDownActionChanged, MOTOR_SWITCH_DELAY_MS, TRANS_TIMER},
 
     /*S_DOWN: Vibrating for 1 hour
-            Conatiner 10 -> Start first heater.
-            Container 11 -> Start second heater.
-            Container 12 -> If finished then stop vibrating.
+            Tank 10 -> Start first heater.
+            Tank 11 -> Start second heater.
+            Tank 12 -> If finished then stop vibrating.
             */
     {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
 
-    /*S_CHECKING: Container 1..10 -> continue to raise state
-            Conatiner 11 + 12 -> Two hours instead of 1 hour, so renter the downstate.
-            Conatiner 10 -> Renter if first wax sensor is not ready.
-            Conatiner 11 -> Renter if first wax sensor is not ready.
+    /*S_CHECKING: Tank 1..10 -> continue to raise state
+            Tank 11 + 12 -> Two hours instead of 1 hour, so renter the downstate.
+            Tank 10 -> Renter if first wax sensor is not ready.
+            Tank 11 -> Renter if first wax sensor is not ready.
             */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, nullptr, checkingActionChanged},
 
@@ -664,7 +679,7 @@ void verifyingActionChanged(EventArgs e)
     if (e.action == ENTRY)
     {
         syncTankID();
-        lcdShowStatus(F("Initilizaing"), F("Wait 3 seconds"));
+        lcdShowStatus(F("Initializing"), F("Wait 3 seconds"));
     }
     if (e.action == EXIT)
         tankChanged = false;
@@ -785,9 +800,9 @@ void idleActionChanged(EventArgs e)
     {
     case ENTRY:
         outputsKill();
-
         syncTankID();
         tankChanged = false;
+        freshStart = true;
         DBGLN("Enter idle");
 
         if (finished)
@@ -1208,7 +1223,7 @@ void verifyWaxConditions()
     if ((s & 2) && !wax2Ready.isActive())
     {
         lcdShowStatus(F("Critical Error"), F("H1 H2 or S1 S2"));
-        DBGLN("Critical error container 12 without melted wax");
+        DBGLN("Critical error Tank 12 without melted wax");
         fsm.begin(S_ERROR);
         return;
     }

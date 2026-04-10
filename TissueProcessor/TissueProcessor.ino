@@ -1,5 +1,5 @@
 // #define DEBUG // Uncomment to enable Serial output for debugging
-// #define TEST  // Uncomment to enable fast timers for testing
+// #define TEST // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -852,7 +852,6 @@ void loweringActionChanged(EventArgs e)
     {
     case ENTRY:
         moveOn();
-
         lcdShowStatusTank(F("Lowering..")); // Uses F() to keep text in Flash
         break;
 
@@ -912,7 +911,6 @@ void downProcess(id_t id)
         fsm.begin(S_IDLE);
         return;
     }
-    vibOn();
 
     if (waitingWaxMelt)
         return;
@@ -927,6 +925,8 @@ void downActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
+        vibOn();
+
         if (startTimeTank == 0)
             startTimeTank = millis();
 
@@ -965,7 +965,7 @@ bool checkingPredicate(id_t id)
     if (!waxReady)
     {
         waitingWaxMelt = true;
-        return false; // Stay in DOWN state
+        return false; // Return to DOWN state
     }
 
     waitingWaxMelt = false;
@@ -1051,17 +1051,12 @@ void raisingActionChanged(EventArgs e)
     case ENTRY:
         DBGLN("Raising..");
         moveOn();
-
         lcdShowStatusTank(F("Raising"));
-
         break;
 
     case EXIT:
-
         DBGLN("Exit Raising state");
-
         lcdShowStatusTank(F("Reached top"));
-
         break;
     }
 }
@@ -1069,7 +1064,6 @@ void raisingActionChanged(EventArgs e)
 bool transitioningPredicate(id_t id)
 {
     syncTankID();
-
     return tankChanged;
 }
 
@@ -1090,7 +1084,6 @@ void transitioningActionChanged(EventArgs e)
     {
     case ENTRY:
         moveOn();
-
         DBGLN("Entering Transition State");
         lcdShowStatus(F("Transition State"), F(""));
         break;

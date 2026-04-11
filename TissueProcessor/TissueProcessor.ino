@@ -112,7 +112,6 @@ uint8_t pendingTank = 1;
 uint8_t currentCycle = 1;
 unsigned long tankStabilityTime = 0;
 unsigned long lastPrintTimeTank = 0; // Last time printed remaining time for tank...
-bool freshStart = true;              // First time started
 bool finished = false;               // Cycle finished
 bool inspection = false;             // Inspection activated
 bool tankChanged = false;
@@ -129,7 +128,7 @@ bool sensorActive(uint8_t pin) { return digitalRead(pin) == LOW; }
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1
 // (1..16) clamp to 1..12
-void syncTankID()
+void syncTankID(bool firstTimeInit)
 {
     uint8_t currentRead = 0;
     for (uint8_t i = 0; i < 4; ++i)
@@ -154,14 +153,11 @@ void syncTankID()
         }
         lastStableTank = pendingTank;
         tankStabilityTime = 0;
-        tankChanged = true;
+
+        if (!firstTimeInit)
+            tankChanged = true;
+
         DBGLN("Tank Changed & Stable");
-        if (freshStart)
-        {
-            // If we start the machine for the first time, it should initialize immediately
-            freshStart = false;
-            tankChanged = false;
-        }
     }
     tankException = false;
 }
@@ -566,7 +562,6 @@ bool verifyingPredicate(id_t id);
 void verifyingActionChanged(EventArgs e);
 
 bool unknownDirectionPredicate(id_t id);
-void unknownDirectionActionChanged(EventArgs e);
 
 bool middlePredicate(id_t id);
 void middleProcess(id_t id);
@@ -622,7 +617,7 @@ Transition transitions[] = {
 
     // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
-    {unknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, unknownDirectionActionChanged},
+    {unknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, nullptr},
 
     // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
     //              otherwise start lowing in same tank
@@ -695,11 +690,9 @@ void verifyingActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
     {
-        syncTankID();
+        syncTankID(True);
         lcdShowStatus(F("Initializing"), F("Wait 3 seconds"));
     }
-    if (e.action == EXIT)
-        tankChanged = false;
 }
 
 bool unknownDirectionPredicate(id_t id)
@@ -710,15 +703,9 @@ bool unknownDirectionPredicate(id_t id)
     return true;
 }
 
-void unknownDirectionActionChanged(EventArgs e)
-{
-    if (e.action == ENTRY)
-        syncTankID();
-}
-
 bool upRecoveryPredicate(id_t id)
 {
-    syncTankID();
+    syncTankID(False);
 
     if (topLimit.isActive() && tankChanged)
         return true;
@@ -738,10 +725,7 @@ void upRecoveryActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
-        syncTankID();
-
         moveOn();
-
         lcdShowStatusTank(F("Recovery Up")); // Uses F() to keep text in Flash
         break;
 
@@ -772,10 +756,7 @@ void middleActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
-        syncTankID();
-
-        if (!isMoving)
-            moveOn();
+        moveOn();
 
         lcdShowStatusTank(F("Recovery Middle")); // Uses F() to keep text in Flash
         break;
@@ -817,9 +798,7 @@ void idleActionChanged(EventArgs e)
     {
     case ENTRY:
         outputsKill();
-        syncTankID();
-        tankChanged = false;
-        freshStart = true;
+        syncTankID(True);
         DBGLN("Enter idle");
 
         if (finished)
@@ -852,7 +831,7 @@ void startingActionChanged(EventArgs e)
     {
     case ENTRY:
     {
-        syncTankID();
+        syncTankID(True);
 
         lcdShowStatusTank(F("Starting...")); // Uses F() to keep text in Flash
 
@@ -1086,7 +1065,7 @@ void raisingActionChanged(EventArgs e)
 
 bool transitioningPredicate(id_t id)
 {
-    syncTankID();
+    syncTankID(False);
     return tankChanged;
 }
 
@@ -1274,7 +1253,7 @@ void setup()
     Wire.begin();
     lcd.init();
     lcd.backlight();
-    syncTankID();
+    syncTankID(True);
     fsm.begin(S_VERIFYING);
     wdt_enable(WDTO_2S);
 }

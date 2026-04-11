@@ -214,31 +214,37 @@ DelayedSensor wax2Ready = {SENSOR_WAX2, 0};
 DelayedSensor startButton = {START_BUTTON, 0, false, BUTTON_DELAY_MS};
 DelayedSensor skipButton = {SKIP_BUTTON, 0, false, BUTTON_DELAY_MS};
 DelayedSensor raiseButton = {RAISE_BUTTON, 0, false, BUTTON_DELAY_MS};
-
+enum WaxRequirement
+{
+    WAX_NONE = 0,
+    WAX_1 = 1,
+    WAX_2 = 2,
+    WAX_BOTH = 3
+};
 struct TankProfile
 {
     uint8_t dwellMinutes;
-    uint8_t requiredHeater; // 0: None, 1: Heater1, 2: Heater2, 3: Both
-    uint8_t requiredWax;    // 0: None, 1: Wax1, 2: Wax2, 3: Both
-    uint8_t cycles;         // 1: Normal, 2: Double dwell (for tanks 11, 12)
+    uint8_t requiredHeater;     // 0: None, 1: Heater1, 2: Heater2, 3: Both
+    WaxRequirement requiredWax; // 0: None, 1: Wax1, 2: Wax2, 3: Both
+    uint8_t cycles;             // 1: Normal, 2: Double dwell (for tanks 11, 12)
 } __attribute__((packed));
 
 // Now define your 12 tanks in one clean table
 const TankProfile tanks[13] PROGMEM =
     {
-        {0, 0, 0, 1},  // Tank 0 (unused)
-        {60, 0, 0, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 0, 0, 1},
-        {60, 1, 0, 1},  // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
-        {120, 3, 1, 2}, // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
-        {120, 3, 3, 2}  // Tank 12: Both Heaters, Both Sensors, 2 cycles
+        {0, 0, WAX_NONE, 1},  // Tank 0 (unused)
+        {60, 0, WAX_NONE, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 0, WAX_NONE, 1},
+        {60, 1, WAX_NONE, 1}, // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
+        {120, 3, WAX_1, 2},   // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
+        {120, 3, WAX_BOTH, 2} // Tank 12: Both Heaters, Both Sensors, 2 cycles
 };
 
 // Accessors for PROGMEM table
@@ -254,13 +260,10 @@ static inline uint8_t getRequiredWaxSensor(uint8_t idx)
 {
     return (uint8_t)pgm_read_byte(&(tanks[idx].requiredWax));
 }
-static inline uint8_t getNextRequiredSensor(uint8_t idx)
+uint8_t getNextTank(uint8_t tank)
 {
-    // wrap explicitly: next after 12 -> 1 (or return 0 if you prefer "no next")
-    uint8_t next = (idx >= 12) ? 1 : (idx + 1);
-    return (uint8_t)pgm_read_byte(&(tanks[next].requiredWax));
+    return (tank >= 12) ? 1 : (tank + 1);
 }
-
 static inline uint8_t getCycles(uint8_t idx)
 {
     return (uint8_t)pgm_read_byte(&(tanks[idx].cycles));
@@ -268,25 +271,26 @@ static inline uint8_t getCycles(uint8_t idx)
 
 bool isWaxReadyForTank(uint8_t tank)
 {
-    switch (getRequiredWaxSensor(tank))
+    WaxRequirement req = (WaxRequirement)getRequiredWaxSensor(tank);
+
+    switch (req)
     {
-    case 0:
+    case WAX_NONE:
         return true;
 
-    case 1:
+    case WAX_1:
         return wax1Ready.isActive();
 
-    case 2:
+    case WAX_2:
         return wax2Ready.isActive();
 
-    case 3:
+    case WAX_BOTH:
         return wax1Ready.isActive() && wax2Ready.isActive();
 
     default:
         return false; // safety fallback
     }
 }
-
 // Motor control helpers
 void moveOn()
 {
@@ -911,8 +915,11 @@ bool downPredicate(id_t id)
     }
     if (waitingWaxMelt)
     {
-        waitingWaxMelt = !isWaxReadyForTank(lastStableTank);
-        return waitingWaxMelt;
+        if (!isWaxReadyForTank(getNextTank(lastStableTank)))
+            return true;
+
+        waitingWaxMelt = false;
+        return false;
     }
     return true;
 }
@@ -984,7 +991,7 @@ bool checkingPredicate(id_t id)
     }
 
     // 2. Check Wax Readiness
-    bool waxReady = isWaxReadyForTank(lastStableTank);
+    bool waxReady = isWaxReadyForTank(getNextTank(lastStableTank));
 
     if (!waxReady)
     {

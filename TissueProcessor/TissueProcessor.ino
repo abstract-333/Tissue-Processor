@@ -99,6 +99,7 @@ const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion 
 
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL; // 1 second - motor swithc saf
 const unsigned long VERIFICATION_DELAY_MS = 2UL * 1000UL;
+const unsigned long TANK_SAMPLE_THRESHOLD = 50UL;   // ms
 const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL; // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;         // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
@@ -136,22 +137,7 @@ void syncTankID()
         uint8_t v = digitalRead(PIN_ID_BITS[i]);
         currentRead |= (v << i);
     }
-    if (freshStart)
-    {
-        if (pendingTank < 1 || pendingTank > 12)
-        {
-            tankException = true;
-            DBG("Wrong Tank ID: ");
-            DBGLN(currentRead);
-            return;
-        }
-        // If we start the machine for the first time, it should initialize immediately
-        freshStart = false;
-        pendingTank = currentRead;
-        lastStableTank = currentRead;
-        tankChanged = false;
-    }
-    else if (currentRead != pendingTank)
+    if (currentRead != pendingTank)
     {
         pendingTank = currentRead;
         tankStabilityTime = millis();
@@ -170,6 +156,12 @@ void syncTankID()
         tankStabilityTime = 0;
         tankChanged = true;
         DBGLN("Tank Changed & Stable");
+        if (freshStart)
+        {
+            // If we start the machine for the first time, it should initialize immediately
+            freshStart = false;
+            tankChanged = false;
+        }
     }
     tankException = false;
 }

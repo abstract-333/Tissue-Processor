@@ -266,6 +266,27 @@ static inline uint8_t getCycles(uint8_t idx)
     return (uint8_t)pgm_read_byte(&(tanks[idx].cycles));
 }
 
+bool isWaxReadyForTank(uint8_t tank)
+{
+    switch (getRequiredWaxSensor(tank))
+    {
+    case 0:
+        return true;
+
+    case 1:
+        return wax1Ready.isActive();
+
+    case 2:
+        return wax2Ready.isActive();
+
+    case 3:
+        return wax1Ready.isActive() && wax2Ready.isActive();
+
+    default:
+        return false; // safety fallback
+    }
+}
+
 // Motor control helpers
 void moveOn()
 {
@@ -890,15 +911,8 @@ bool downPredicate(id_t id)
     }
     if (waitingWaxMelt)
     {
-        uint8_t s = getNextRequiredSensor(lastStableTank);
-        if ((s & 1) && !wax1Ready.isActive())
-            return true;
-
-        if ((s & 2) && !wax2Ready.isActive())
-            return true;
-
-        waitingWaxMelt = false;
-        return false;
+        waitingWaxMelt = !isWaxReadyForTank(lastStableTank);
+        return waitingWaxMelt;
     }
     return true;
 }
@@ -970,12 +984,7 @@ bool checkingPredicate(id_t id)
     }
 
     // 2. Check Wax Readiness
-    bool waxReady = true;
-    uint8_t s = getNextRequiredSensor(lastStableTank);
-    if ((s & 1) && !wax1Ready.isActive())
-        waxReady = false;
-    if ((s & 2) && !wax2Ready.isActive())
-        waxReady = false;
+    bool waxReady = isWaxReadyForTank(lastStableTank);
 
     if (!waxReady)
     {

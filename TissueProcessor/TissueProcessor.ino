@@ -99,7 +99,6 @@ const unsigned long MOVE_TIMEOUT_MS = 30UL * 1000UL;     // 30 seconds - motion 
 
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL; // 1 second - motor swithc saf
 const unsigned long VERIFICATION_DELAY_MS = 2UL * 1000UL;
-const unsigned long TANK_SAMPLE_THRESHOLD = 50UL;   // ms
 const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL; // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;         // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
@@ -131,7 +130,7 @@ bool sensorActive(uint8_t pin) { return digitalRead(pin) == LOW; }
 void syncTankID(bool firstTimeInit)
 {
     uint8_t currentRead = 0;
-    for (uint8_t i = 0; i < 4; ++i)
+    for (uint8_t i = 0; i < 4; i++)
     {
         uint8_t v = digitalRead(PIN_ID_BITS[i]);
         currentRead |= (v << i);
@@ -142,7 +141,7 @@ void syncTankID(bool firstTimeInit)
         tankStabilityTime = millis();
         tankChanged = false;
     }
-    else if (lastStableTank != pendingTank && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
+    if (lastStableTank != pendingTank && (millis() - tankStabilityTime) >= TANK_STABILITY_THRESHOLD)
     {
         if (pendingTank < 1 || pendingTank > 12)
         {
@@ -559,6 +558,7 @@ enum MainState : id_t
 
 // Forward declarations for predicate/process/event functions
 bool verifyingPredicate(id_t id);
+void verifyingProcess(id_t id);
 void verifyingActionChanged(EventArgs e);
 
 bool unknownDirectionPredicate(id_t id);
@@ -613,7 +613,7 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, nullptr, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
+    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, verifyingProcess, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
 
     // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
     //                              if not top and not down, so sample is on the middle position
@@ -685,14 +685,15 @@ bool verifyingPredicate(id_t id)
 
     return true;
 }
+void verifyingProcess(id_t id)
+{
+    syncTankID(True);
+}
 
 void verifyingActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
-    {
-        syncTankID(True);
         lcdShowStatus(F("Initializing"), F("Wait 3 seconds"));
-    }
 }
 
 bool unknownDirectionPredicate(id_t id)

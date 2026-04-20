@@ -687,7 +687,7 @@ bool verifyingPredicate(id_t id)
 }
 void verifyingProcess(id_t id)
 {
-    syncTankID(True);
+    syncTankID(true);
 }
 
 void verifyingActionChanged(EventArgs e)
@@ -706,7 +706,7 @@ bool unknownDirectionPredicate(id_t id)
 
 bool upRecoveryPredicate(id_t id)
 {
-    syncTankID(False);
+    syncTankID(false);
 
     if (topLimit.isActive() && tankChanged)
         return true;
@@ -799,7 +799,7 @@ void idleActionChanged(EventArgs e)
     {
     case ENTRY:
         outputsKill();
-        syncTankID(True);
+        syncTankID(true);
         DBGLN("Enter idle");
 
         if (finished)
@@ -832,7 +832,7 @@ void startingActionChanged(EventArgs e)
     {
     case ENTRY:
     {
-        syncTankID(True);
+        syncTankID(true);
 
         lcdShowStatusTank(F("Starting...")); // Uses F() to keep text in Flash
 
@@ -1066,7 +1066,7 @@ void raisingActionChanged(EventArgs e)
 
 bool transitioningPredicate(id_t id)
 {
-    syncTankID(False);
+    syncTankID(false);
     return tankChanged;
 }
 
@@ -1254,7 +1254,7 @@ void setup()
     Wire.begin();
     lcd.init();
     lcd.backlight();
-    syncTankID(True);
+    syncTankID(true);
     fsm.begin(S_VERIFYING);
     wdt_enable(WDTO_2S);
 }

@@ -58,8 +58,8 @@
 #include <avr/wdt.h>
 // ========================= PIN MAP (as provided) =========================
 // Power outputs
-const uint8_t MOVE_PIN = 8;    // D8 - Processing vibration motor
-const uint8_t VIB_PIN = 7;     // D7 - Relay enable for AC motor
+const uint8_t MOVE_PIN = 8;    // D8 - Moving Motor
+const uint8_t VIB_PIN = 7;     // D7 - Vibration Motor
 const uint8_t HEATER1_PIN = 6; // D6  - Heater 1
 const uint8_t HEATER2_PIN = 5; // D5 - Heater 2
 // Sensors &  thermostats (Active LOW: 0 = active)
@@ -69,7 +69,7 @@ const uint8_t SENSOR_WAX1 = 3;    // D3
 const uint8_t SENSOR_WAX2 = 4;    // D4
 
 // Tank ID (B9..B12)
-const uint8_t PIN_ID_BITS[4] = {9, 10, 11, 12}; // bit0 LSB .. bit3 MSB
+const uint8_t PIN_ID_BITS[4] = {12, 11, 10, 9}; // bit0 LSB .. bit3 MSB
 
 // UI
 const uint8_t START_BUTTON = 2; // D2

@@ -23,8 +23,8 @@
       D5  -> heater 1 (HEATER1_PIN)
 
     Sensor inputs (active LOW): A0, A1, D3, D4
-      A0 -> top-level sensor (TOP_SENSOR_PIN)
-      A1 -> bottom-level sensor (BOTTOM_SENSOR_PIN)
+      A0 -> bottom-level sensor (BOTTOM_SENSOR_PIN)
+      A1 -> top-level sensor (TOP_SENSOR_PIN)
       D4 -> wax-ready sensor 2 (WAX2_SENSOR_PIN)
       D3 -> wax-ready sensor 1 (WAX1_SENSOR_PIN)
 

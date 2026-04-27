@@ -120,6 +120,7 @@ bool isHeating1 = false;  // true = ON
 bool isHeating2 = false;  // true = ON
 bool tankException = false;
 bool waitingWaxMelt = false;
+bool isRunning = false;
 
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when
 // a fail-safe (treated as active).
@@ -627,7 +628,7 @@ Transition transitions[] = {
     //              otherwise start lowing in same tank
     {upRecoveryPredicate, S_UP_RECOVERY, S_STARTING_NEW_TANK, UpRecoveryProcess, upRecoveryActionChanged},
 
-    // S_IDLE: wait start button. When pressed -> CHECK_START
+    // S_IDLE: if paused stay in Idle. After pressing starting button -> Go down
     {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
 
     // S_PRE_DOWN: Just wait for MOTOR_SWITCH_DELAY_MS before moving to next
@@ -770,15 +771,9 @@ void middleActionChanged(EventArgs e)
 
 bool idlePredicate(id_t id)
 {
-    if (startButton.isActive())
-    {
-        DBGLN("Start button pressed");
-        startButton.reset();
-        return true;
-    }
-
-    return false;
+    return isRunning;
 }
+
 void idleProcess(id_t id)
 {
     if (skipButton.isActive() || raiseButton.isActive())
@@ -790,6 +785,13 @@ void idleProcess(id_t id)
         DBGLN("Raising to top");
         lcdShowStatus(F("Skip tank"), F("Raising..."));
         fsm.begin(S_RAISING);
+        return;
+    }
+    if (!isRunning && startButton.isActive())
+    {
+        DBGLN("Start button pressed");
+        startButton.reset();
+        isRunning = true;
         return;
     }
 }
@@ -915,6 +917,7 @@ void downProcess(id_t id)
         vibOff();
         moveOff();
         startButton.reset();
+        isRunning = false;
         lcdShowStatus(F("Button pressed"), F("Go to idle"));
         fsm.begin(S_IDLE);
         return;

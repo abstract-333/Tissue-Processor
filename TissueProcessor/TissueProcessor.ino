@@ -120,7 +120,7 @@ bool isHeating1 = false;  // true = ON
 bool isHeating2 = false;  // true = ON
 bool tankException = false;
 bool waitingWaxMelt = false;
-bool isRunning = false;
+bool isRunning = true;
 
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when
 // a fail-safe (treated as active).
@@ -792,6 +792,7 @@ void idleProcess(id_t id)
         DBGLN("Start button pressed");
         startButton.reset();
         isRunning = true;
+        lastPrintTimeTank = 0;
         return;
     }
 }
@@ -918,6 +919,7 @@ void downProcess(id_t id)
         moveOff();
         startButton.reset();
         isRunning = false;
+        lastPrintTimeTank = 0;
         lcdShowStatus(F("Button pressed"), F("Go to idle"));
         fsm.begin(S_IDLE);
         return;

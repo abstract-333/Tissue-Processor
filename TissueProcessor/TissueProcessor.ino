@@ -771,6 +771,9 @@ void middleActionChanged(EventArgs e)
 
 bool idlePredicate(id_t id)
 {
+    if (finished)
+        return false;
+
     return isRunning;
 }
 

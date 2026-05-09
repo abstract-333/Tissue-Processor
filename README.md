@@ -494,7 +494,7 @@ This enables:
 
 ## Wokwi Online Simulation
 
-[Wokwi Simulation](https://wokwi.com/projects/455347457174812673?utm_source=chatgpt.com)
+[Wokwi Simulation](https://wokwi.com/projects/455347457174812673)
 
 ---
 
@@ -524,4 +524,4 @@ Copyright © 2026 Basher Hasan (`abstract-333`)
 
 See:
 
-[LICENSE](https://github.com/abstract-333/Tissue-Processor/blob/main/LICENSE?utm_source=chatgpt.com)
+[LICENSE](https://github.com/abstract-333/Tissue-Processor/blob/main/LICENSE)

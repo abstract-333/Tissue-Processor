@@ -93,7 +93,7 @@ const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
 const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
 const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 const unsigned long TANK_STABILITY_THRESHOLD = 200UL;    // ms
-const unsigned long MOVE_TIMEOUT_MS = 60UL * 1000UL;     // 30 seconds - motion safety timeout
+const unsigned long MOVE_TIMEOUT_MS = 60UL * 1000UL;     // 60 seconds - motion safety timeout
 
 #endif
 

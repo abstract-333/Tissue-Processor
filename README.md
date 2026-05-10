@@ -183,7 +183,7 @@ On boot:
 If the movement motor runs longer than:
 
 ```cpp
-30 seconds
+60 seconds
 ```
 
 without reaching the target sensor, the system enters:
@@ -310,7 +310,7 @@ Changes timing behavior for rapid testing:
 | ------------ | ----------- |
 | 1 minute     | 1 second    |
 | 1 hour dwell | 60 seconds  |
-| 30s timeout  | 10s timeout |
+| 60s timeout  | 10s timeout |
 
 Useful for validating full process cycles quickly.
 

@@ -83,24 +83,24 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL;               // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 10UL;              // allow 10 seconds in test
-const unsigned long TANK_TIME_MS = 10UL * 1000UL;      // stays down for 10 seconds while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 2000UL; // 2 seconds
-const unsigned long MOVE_TIMEOUT_MS = 10UL * 1000UL;   // 10 seconds - motion safety timeout
+const unsigned long ONE_MIN_MS = 1000UL;                     // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 10UL;                    // allow 10 seconds in test
+const unsigned long TANK_TIME_MS = 10UL * 1000UL;            // stays down for 10 seconds while vibrating
+const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
+const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
-const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 200UL;    // ms
-const unsigned long MOVE_TIMEOUT_MS = 60UL * 1000UL;     // 60 seconds - motion safety timeout
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;              // 1 real minute
+const unsigned long MIN_DWELL_MIN = 60UL;                    // production min dwell in minutes
+const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL;     // Normaly stays down for 1 hour while vibrating
+const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
+const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
 
 #endif
 
-const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL; // 1 second - motor swithc saf
-const unsigned long VERIFICATION_DELAY_MS = 2UL * 1000UL;
-const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL; // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 20;         // debounce time for sensors = 20 ms
+const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;        // 1 second - motor swithc saf
+const unsigned long VERIFICATION_DELAY_MS = 10UL * 1000UL; // 10 seconds
+const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;        // Idle state - 2 seconds
+const unsigned long DEBOUNCE_DELAY_MS = 20;                // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
 
 // Program variables
@@ -209,30 +209,37 @@ enum WaxRequirement
     WAX_2 = 2,
     WAX_BOTH = 3
 };
+enum HeaterRequirement
+{
+    HEATER_NONE = 0,
+    HEATER_1 = 1,
+    HEATER_2 = 2,
+    HEATER_BOTH = 3
+};
 struct TankProfile
 {
     uint8_t dwellMinutes;
-    uint8_t requiredHeater;     // 0: None, 1: Heater1, 2: Heater2, 3: Both
-    WaxRequirement requiredWax; // 0: None, 1: Wax1, 2: Wax2, 3: Both
-    uint8_t cycles;             // 1: Normal, 2: Double dwell (for tanks 11, 12)
+    HeaterRequirement requiredHeater; // 0: None, 1: Heater1, 2: Heater2, 3: Both
+    WaxRequirement requiredWax;       // 0: None, 1: Wax1, 2: Wax2, 3: Both
+    uint8_t cycles;                   // 1: Normal, 2: Double dwell (for tanks 11, 12)
 } __attribute__((packed));
 
 // Now define your 12 tanks in one clean table
 const TankProfile tanks[13] PROGMEM =
     {
-        {0, 0, WAX_NONE, 1},  // Tank 0 (unused)
-        {60, 0, WAX_NONE, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 0, WAX_NONE, 1},
-        {60, 1, WAX_NONE, 1}, // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
-        {120, 3, WAX_1, 2},   // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
-        {120, 3, WAX_BOTH, 2} // Tank 12: Both Heaters, Both Sensors, 2 cycles
+        {0, HEATER_NONE, WAX_NONE, 1},  // Tank 0 (unused)
+        {60, HEATER_NONE, WAX_NONE, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_NONE, WAX_NONE, 1},
+        {60, HEATER_1, WAX_NONE, 1},  // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
+        {120, HEATER_BOTH, WAX_1, 2}, // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
+        {120, HEATER_2, WAX_2, 2}     // Tank 12: Both Heaters, Both Sensors, 2 cycles
 };
 
 // Accessors for PROGMEM table
@@ -279,6 +286,7 @@ bool isWaxReadyForTank(uint8_t tank)
         return false; // safety fallback
     }
 }
+
 // Motor control helpers
 void moveOn()
 {
@@ -552,7 +560,6 @@ enum MainState : id_t
     S_RAISING,
     S_UP,
     S_TRANSITIONING,
-    S_STARTING_NEW_TANK,
     S_LOWERING,
     S_ERROR
 };
@@ -568,19 +575,12 @@ bool middlePredicate(id_t id);
 void middleProcess(id_t id);
 void middleActionChanged(EventArgs e);
 
-bool upRecoveryPredicate(id_t id);
-void upRecoveryActionChanged(EventArgs e);
-void UpRecoveryProcess(id_t id);
-
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
 void idleProcess(id_t id);
 
 bool checkingPredicate(id_t id);
 void checkingActionChanged(EventArgs e);
-
-bool startingPredicate(id_t id);
-void startingActionChanged(EventArgs e);
 
 bool loweringPredicate(id_t id);
 void loweringActionChanged(EventArgs e);
@@ -600,7 +600,6 @@ bool checkingPredicate(id_t id);
 void checkingActionChanged(EventArgs e);
 
 bool transitioningPredicate(id_t id);
-void transitioningProcess(id_t id);
 void transitioningActionChanged(EventArgs e);
 
 void errorActionChanged(EventArgs e);
@@ -616,17 +615,13 @@ Transition transitions[] = {
     //              otherwise enter recovery mode
     {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, verifyingProcess, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
 
-    // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP_RECOVERY
+    // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP
     //                              if not top and not down, so sample is on the middle position
-    {unknownDirectionPredicate, S_UP_RECOVERY, S_MIDDLE_RECOVERY, nullptr, nullptr},
+    {unknownDirectionPredicate, S_UP, S_MIDDLE_RECOVERY, nullptr, nullptr},
 
-    // S_MIDDLE_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
-    //              otherwise start lowing in same tank
+    // S_MIDDLE_RECOVERY: if sample reached top -> S_UP
+    //              otherwise S_PRE_DOWN
     {middlePredicate, S_MIDDLE_RECOVERY, S_UP, middleProcess, middleActionChanged},
-
-    // S_UP_RECOVERY: if sample moved to new tank -> S_STARTING_NEW_TANK
-    //              otherwise start lowing in same tank
-    {upRecoveryPredicate, S_UP_RECOVERY, S_STARTING_NEW_TANK, UpRecoveryProcess, upRecoveryActionChanged},
 
     // S_IDLE: if paused stay in Idle. After pressing starting button -> Go down
     {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
@@ -662,10 +657,7 @@ Transition transitions[] = {
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
     // logic or to START if finished
-    {transitioningPredicate, S_TRANSITIONING, S_STARTING_NEW_TANK, transitioningProcess, transitioningActionChanged},
-
-    // S_STARTING_NEW_TANK: read tank and prepare moving down the sample
-    {startingPredicate, S_STARTING_NEW_TANK, S_LOWERING, nullptr, startingActionChanged},
+    {transitioningPredicate, S_TRANSITIONING, S_LOWERING, nullptr, transitioningActionChanged},
 
     // S_LOWERING: run movement motor until bottom sensor active -> if bottom
     // sensor active -> DOWN else ERROR
@@ -694,7 +686,7 @@ void verifyingProcess(id_t id)
 void verifyingActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
-        lcdShowStatus(F("Initializing"), F("Wait 3 seconds"));
+        lcdShowStatus(F("Initializing"), F("Wait 10 seconds"));
 }
 
 bool unknownDirectionPredicate(id_t id)
@@ -703,38 +695,6 @@ bool unknownDirectionPredicate(id_t id)
         return false;
 
     return true;
-}
-
-bool upRecoveryPredicate(id_t id)
-{
-    syncTankID(false);
-
-    if (topLimit.isActive() && tankChanged)
-        return true;
-
-    return false;
-}
-
-void UpRecoveryProcess(id_t id)
-{
-    if (!bottomLimit.isActive() && !topLimit.isActive())
-        fsm.begin(S_LOWERING);
-    return;
-}
-
-void upRecoveryActionChanged(EventArgs e)
-{
-    switch (e.action)
-    {
-    case ENTRY:
-        moveOn();
-        lcdShowStatusTank(F("Recovery Up")); // Uses F() to keep text in Flash
-        break;
-
-    case EXIT:
-        DBGLN("Exit Lowering");
-        break;
-    }
 }
 
 bool middlePredicate(id_t id)
@@ -804,7 +764,7 @@ void idleActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
-        outputsKill();
+
         syncTankID(true);
         DBGLN("Enter idle");
 
@@ -814,7 +774,10 @@ void idleActionChanged(EventArgs e)
             lcdShowStatus(F("Status: Idle"), F("Press Start"));
 
         if (lastStableTank != 12)
+        {
+            outputsKill();
             finished = false;
+        }
 
         break;
 
@@ -824,37 +787,10 @@ void idleActionChanged(EventArgs e)
     }
 }
 
-bool startingPredicate(id_t id)
-{
-    if (!topLimit.isActive())
-        return true;
-
-    return false;
-}
-
-void startingActionChanged(EventArgs e)
-{
-    switch (e.action)
-    {
-    case ENTRY:
-    {
-        syncTankID(true);
-
-        lcdShowStatusTank(F("Starting...")); // Uses F() to keep text in Flash
-
-        DBG("Entering tank: ");
-        DBGLN(lastStableTank);
-        break;
-    }
-    case EXIT:
-        tankChanged = false;
-        break;
-    }
-}
-
 bool loweringPredicate(id_t id)
 {
     // if bottom sensor active -> true, so move to DOWN
+    syncTankID(true);
     if (bottomLimit.isActive())
     {
         moveOff();
@@ -1019,7 +955,7 @@ void upProcess(id_t id)
 }
 bool upPredicate(id_t id)
 {
-    if (!inspection)
+    if (!inspection && !topLimit.isActive())
         return true;
 
     if (raiseButton.isActive())
@@ -1076,17 +1012,6 @@ bool transitioningPredicate(id_t id)
 {
     syncTankID(false);
     return tankChanged;
-}
-
-void transitioningProcess(id_t id)
-{
-    if (!topLimit.isActive())
-    {
-        lcdShowStatus(F("Critical Error"), F("Top sensor"));
-        fsm.begin(S_ERROR); // Top sensor is not active -> Error
-        return;
-    }
-    return;
 }
 
 void transitioningActionChanged(EventArgs e)

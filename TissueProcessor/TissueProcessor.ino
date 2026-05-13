@@ -124,7 +124,14 @@ bool isRunning = true;
 
 // Sensor helpers (active LOW). Return true when sensor is active (LOW) or when
 // a fail-safe (treated as active).
-bool sensorActive(uint8_t pin) { return digitalRead(pin) == LOW; }
+bool sensorActive(uint8_t pin)
+{
+    if (pin == SENSOR_WAX1 || pin == SENSOR_WAX2)
+    {
+        return digitalRead(pin) == HIGH; // Active HIGH for Wax Sensors
+    }
+    return digitalRead(pin) == LOW; // Active LOW for everything else
+}
 
 // Utility: read tank number from A0..A3 as digital inputs (0..15) then +1
 // (1..16) clamp to 1..12
@@ -1163,9 +1170,11 @@ void setupPins()
     pinMode(HEATER2_PIN, OUTPUT);
     digitalWrite(HEATER2_PIN, LOW);
 
+    // Wax sensors - active HIGH
+    pinMode(SENSOR_WAX2, INPUT);
+    pinMode(SENSOR_WAX1, INPUT);
+
     // Sensor inputs - active LOW
-    pinMode(SENSOR_WAX2, INPUT_PULLUP);
-    pinMode(SENSOR_WAX1, INPUT_PULLUP);
     pinMode(SENSOR_BOTTOM, INPUT_PULLUP);
     pinMode(SENSOR_TOP, INPUT_PULLUP);
     pinMode(START_BUTTON, INPUT_PULLUP);

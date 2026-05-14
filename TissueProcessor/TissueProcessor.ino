@@ -558,7 +558,6 @@ enum MainState : id_t
     S_VERIFYING = 0,
     S_UNKNOWN_DIRECTION_RECOVERY,
     S_MIDDLE_RECOVERY,
-    S_UP_RECOVERY,
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,

@@ -619,9 +619,6 @@ void upActionChanged(EventArgs e);
 bool raisingPredicate(id_t id);
 void raisingActionChanged(EventArgs e);
 
-bool checkingPredicate(id_t id);
-void checkingActionChanged(EventArgs e);
-
 bool transitioningPredicate(id_t id);
 void transitioningActionChanged(EventArgs e);
 
@@ -664,7 +661,7 @@ Transition transitions[] = {
     /*S_CHECKING: Tank 1..10 -> continue to raise state
             Tank 11 + 12 -> Two hours instead of 1 hour, so renter the downstate.
             Tank 10 -> Renter if first wax sensor is not ready.
-            Tank 11 -> Renter if first wax sensor is not ready.
+            Tank 11 -> Renter if second wax sensor is not ready.
             */
     {checkingPredicate, S_DOWN, S_PRE_RAISING, nullptr, checkingActionChanged},
 
@@ -926,6 +923,7 @@ bool checkingPredicate(id_t id)
     if (currentCycle < getCycles(lastStableTank))
     {
         currentCycle++;
+        DBGLN("We are not ready yet...............");
         return false; // Stay in DOWN state
     }
 

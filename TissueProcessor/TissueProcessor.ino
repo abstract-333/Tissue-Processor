@@ -79,11 +79,14 @@ const uint8_t MOVE_PIN = 8;    // D8 - Moving Motor
 const uint8_t VIB_PIN = 7;     // D7 - Vibration Motor
 const uint8_t HEATER1_PIN = 6; // D6  - Heater 1
 const uint8_t HEATER2_PIN = 5; // D5 - Heater 2
+
 // Sensors &  thermostats (Active LOW: 0 = active)
 const uint8_t SENSOR_TOP = A1;    // A1
 const uint8_t SENSOR_BOTTOM = A0; // A0
-const uint8_t SENSOR_WAX1 = 3;    // D3
-const uint8_t SENSOR_WAX2 = 4;    // D4
+
+// Wax sensors HIGH = 1 as usual
+const uint8_t SENSOR_WAX1 = 3; // D3
+const uint8_t SENSOR_WAX2 = 4; // D4
 
 // Tank ID (B9..B12)
 const uint8_t PIN_ID_BITS[4] = {12, 11, 10, 9}; // bit0 LSB .. bit3 MSB

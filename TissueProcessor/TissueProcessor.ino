@@ -586,7 +586,6 @@ enum MainState : id_t
     S_UP,
     S_TRANSITIONING,
     S_LOWERING,
-    S_TANK_EXCEPTION,
     S_ERROR
 };
 
@@ -1096,18 +1095,6 @@ void preDownActionChanged(EventArgs e)
         startTimeTank = 0;
         break;
     }
-}
-// Setup and loop
-void handleSensorsFailure()
-{
-    bool topSensor = topLimit.isActive();
-    bool bottomSensor = bottomLimit.isActive();
-    bool heatSensor_1 = wax1Ready.isActive();
-    bool heatSensor_2 = wax2Ready.isActive();
-    DBGLN(topSensor);
-    DBGLN(bottomSensor);
-    DBGLN(heatSensor_1);
-    DBGLN(heatSensor_2);
 }
 // ========================= TASKS & SCHEDULER =========================
 // Tasks run from a cooperative scheduler tick

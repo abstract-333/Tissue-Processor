@@ -103,24 +103,23 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 // ========================= CONFIGURATION & TIME CONSTANTS =========================
 
 #ifdef TEST
-const unsigned long ONE_MIN_MS = 1000UL;                     // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 10UL;                    // allow 10 seconds in test
-const unsigned long TANK_TIME_MS = 10UL * 1000UL;            // stays down for 10 seconds while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
-const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
+const unsigned long ONE_MIN_MS = 1000UL;          // 1 second = 1 "minute" for testing
+const unsigned long MIN_DWELL_MIN = 10UL;         // allow 10 seconds in test
+const unsigned long TANK_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL;              // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;                    // production min dwell in minutes
-const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL;     // Normaly stays down for 1 hour while vibrating
-const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
-const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
+const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
+const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
 
 #endif
 
-const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;        // 1 second - motor swithc saf
-const unsigned long VERIFICATION_DELAY_MS = 10UL * 1000UL; // 10 seconds
-const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;        // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 20;                // debounce time for sensors = 20 ms
+const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;          // 1 second - motor swithc saf
+const unsigned long VERIFICATION_DELAY_MS = 10UL * 1000UL;   // 10 seconds
+const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
+const unsigned long TANK_EXCEPTION_DELAY = 3UL * 1000UL;     // 3 seconds
+const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
+const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;          // Idle state - 2 seconds
+const unsigned long DEBOUNCE_DELAY_MS = 20;                  // debounce time for sensors = 20 ms
 const uint8_t TANK_12 = 12;
 
 // Program variables
@@ -576,8 +575,10 @@ void printRemainingTimeForTank(uint8_t tank)
 enum MainState : id_t
 {
     S_VERIFYING = 0,
+    S_HANDLING_TANK_RECOVERY,
     S_UNKNOWN_DIRECTION_RECOVERY,
     S_MIDDLE_RECOVERY,
+    S_UNIDENTIFIED_TANK,
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
@@ -587,6 +588,7 @@ enum MainState : id_t
     S_UP,
     S_TRANSITIONING,
     S_LOWERING,
+    S_TANK_EXCEPTION,
     S_ERROR
 };
 
@@ -595,11 +597,16 @@ bool verifyingPredicate(id_t id);
 void verifyingProcess(id_t id);
 void verifyingActionChanged(EventArgs e);
 
+bool handleTankRecoveryPredicate(id_t id);
+
 bool unknownDirectionPredicate(id_t id);
 
 bool middlePredicate(id_t id);
 void middleProcess(id_t id);
 void middleActionChanged(EventArgs e);
+
+bool unidentifiedTankPredicate(id_t id);
+void unidentifiedActionChanged(EventArgs e);
 
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
@@ -627,6 +634,8 @@ void transitioningActionChanged(EventArgs e);
 
 void errorActionChanged(EventArgs e);
 
+void tankerrorActionChanged(EventArgs e);
+
 void preDownActionChanged(EventArgs e);
 
 void preRaisingActionChanged(EventArgs e);
@@ -636,7 +645,11 @@ void preRaisingActionChanged(EventArgs e);
 Transition transitions[] = {
     // S_VERIFYING: if sample is down -> continue as correct behavior
     //              otherwise enter recovery mode
-    {verifyingPredicate, S_IDLE, S_UNKNOWN_DIRECTION_RECOVERY, verifyingProcess, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
+    {verifyingPredicate, S_IDLE, S_HANDLING_TANK_RECOVERY, verifyingProcess, verifyingActionChanged, VERIFICATION_DELAY_MS, PREDIC_TIMER},
+
+    // S_HANDLING_TANK_RECOVERY: if tank id is between 1 and 12, go to S_UNKNOWN_DIRECTION_RECOVERY
+    //                              otherwise move to S_UNIDENTIFIED_TANK
+    {handleTankRecoveryPredicate, S_UNKNOWN_DIRECTION_RECOVERY, S_UNIDENTIFIED_TANK, nullptr, nullptr},
 
     // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP
     //                              if not top and not down, so sample is on the middle position
@@ -645,6 +658,11 @@ Transition transitions[] = {
     // S_MIDDLE_RECOVERY: if sample reached top -> S_UP
     //              otherwise S_PRE_DOWN
     {middlePredicate, S_MIDDLE_RECOVERY, S_UP, middleProcess, middleActionChanged},
+
+    // S_UNIDENTIFIED_TANK:In top position, tank id can stack to 0 for short period (3 seconds)
+    //                               So wait this time in order to continue to lowering state
+    //                               Otherwise, exception will be raised...
+    {unidentifiedTankPredicate, S_TANK_EXCEPTION, S_LOWERING, nullptr, unidentifiedActionChanged, TANK_EXCEPTION_DELAY, FALSE_TIMER},
 
     // S_IDLE: if paused stay in Idle. After pressing starting button -> Go down
     {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
@@ -686,8 +704,13 @@ Transition transitions[] = {
     // sensor active -> DOWN else ERROR
     {loweringPredicate, S_LOWERING, S_PRE_DOWN, nullptr, loweringActionChanged},
 
+    // S_TANK_EXCEPTION tank not inside 1 to 12 range
+    {nullptr, S_ERROR, S_ERROR, nullptr, tankerrorActionChanged},
+
     // ERROR (top or down sensors, heat sensors, motor, heaters)
-    {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}};
+    {nullptr, S_ERROR, S_ERROR, nullptr, errorActionChanged}
+
+};
 
 const uint8_t numberOfTransitions = sizeof(transitions) / sizeof(Transition);
 
@@ -712,24 +735,43 @@ void verifyingActionChanged(EventArgs e)
         lcdShowStatus(F("Initializing"), F("Wait 10 seconds"));
 }
 
+bool handleTankRecoveryPredicate(id_t id)
+{
+    if (tankException && !topLimit.isActive() && !bottomLimit.isActive())
+    {
+        moveOn();
+        return true;
+    }
+    return false;
+}
+
 bool unknownDirectionPredicate(id_t id)
 {
     if (topLimit.isActive())
+    {
+        moveOn();
         return false;
-
+    }
     return true;
 }
 
 bool middlePredicate(id_t id)
 {
     if (topLimit.isActive())
+    {
+        moveOn();
         return true;
+    }
 
     return false;
 }
 
 void middleProcess(id_t id)
 {
+    syncTankID(false);
+    if (tankChanged && !bottomLimit.isActive() && !topLimit.isActive())
+        fsm.begin(S_LOWERING);
+
     if (bottomLimit.isActive())
         fsm.begin(S_PRE_DOWN);
 
@@ -752,6 +794,26 @@ void middleActionChanged(EventArgs e)
     }
 }
 
+bool unidentifiedTankPredicate(id_t id)
+{
+    syncTankID(false);
+    if (tankChanged)
+        return true;
+    return false;
+}
+
+void unidentifiedActionChanged(EventArgs e)
+{
+    switch (e.action)
+    {
+    case ENTRY:
+        lcdShowStatusTank(F("Unknown tank")); // Uses F() to keep text in Flash
+        break;
+
+    case EXIT:
+        break;
+    }
+}
 bool idlePredicate(id_t id)
 {
     if (finished)
@@ -995,6 +1057,7 @@ void upActionChanged(EventArgs e)
     switch (e.action)
     {
     case ENTRY:
+        lcdShowStatusTank(F("Reached Top"));
         DBGLN("Top state");
         break;
 
@@ -1055,13 +1118,21 @@ void transitioningActionChanged(EventArgs e)
     }
 }
 
+void tankerrorActionChanged(EventArgs e)
+{
+    if (e.action == ENTRY)
+    {
+        // KILL EVERYTHING
+        outputsKill();
+        lcdShowStatus(F("ERROR"), F("Tank read"));
+    }
+};
 void errorActionChanged(EventArgs e)
 {
     if (e.action == ENTRY)
     {
         // KILL EVERYTHING
         outputsKill();
-
         DBGLN("!!! SAFETY SHUTDOWN !!!");
     }
 }
@@ -1136,7 +1207,7 @@ void safetyTask()
         return;
     }
 
-    if (tankException)
+    if (tankException && !(fsm.id == S_VERIFYING || fsm.id == S_UNIDENTIFIED_TANK || fsm.id == S_HANDLING_TANK_RECOVERY))
     {
         lcdShowStatus(F("ERROR"), F("Tank read"));
         fsm.begin(S_ERROR);

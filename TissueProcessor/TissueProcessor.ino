@@ -116,7 +116,7 @@ const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down f
 const unsigned long MOTOR_SWITCH_DELAY_MS = 1000UL;          // 1 second - motor swithc saf
 const unsigned long VERIFICATION_DELAY_MS = 10UL * 1000UL;   // 10 seconds
 const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
-const unsigned long TANK_EXCEPTION_DELAY = 3UL * 1000UL;     // 3 seconds
+const unsigned long TANK_EXCEPTION_DELAY = 7UL * 1000UL;     // 5 seconds
 const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
 const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;          // Idle state - 2 seconds
 const unsigned long DEBOUNCE_DELAY_MS = 20;                  // debounce time for sensors = 20 ms
@@ -606,6 +606,7 @@ void middleProcess(id_t id);
 void middleActionChanged(EventArgs e);
 
 bool unidentifiedTankPredicate(id_t id);
+void unidentifiedTankProcess(id_t id);
 void unidentifiedActionChanged(EventArgs e);
 
 bool idlePredicate(id_t id);
@@ -662,7 +663,7 @@ Transition transitions[] = {
     // S_UNIDENTIFIED_TANK:In top position, tank id can stack to 0 for short period (3 seconds)
     //                               So wait this time in order to continue to lowering state
     //                               Otherwise, exception will be raised...
-    {unidentifiedTankPredicate, S_TANK_EXCEPTION, S_LOWERING, nullptr, unidentifiedActionChanged, TANK_EXCEPTION_DELAY, FALSE_TIMER},
+    {unidentifiedTankPredicate, S_TANK_EXCEPTION, S_LOWERING, unidentifiedTankProcess, unidentifiedActionChanged, TANK_EXCEPTION_DELAY, FALSE_TIMER},
 
     // S_IDLE: if paused stay in Idle. After pressing starting button -> Go down
     {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
@@ -739,6 +740,7 @@ bool handleTankRecoveryPredicate(id_t id)
 {
     if (tankException && !topLimit.isActive() && !bottomLimit.isActive())
     {
+        syncTankID(false);
         moveOn();
         return true;
     }
@@ -770,8 +772,10 @@ void middleProcess(id_t id)
 {
     syncTankID(false);
     if (tankChanged && !bottomLimit.isActive() && !topLimit.isActive())
+    {
+        tankChanged = false;
         fsm.begin(S_LOWERING);
-
+    }
     if (bottomLimit.isActive())
         fsm.begin(S_PRE_DOWN);
 
@@ -796,10 +800,17 @@ void middleActionChanged(EventArgs e)
 
 bool unidentifiedTankPredicate(id_t id)
 {
-    syncTankID(false);
     if (tankChanged)
+    {
+        tankChanged = false;
         return true;
+    }
+
     return false;
+}
+void unidentifiedTankProcess(id_t id)
+{
+    syncTankID(false);
 }
 
 void unidentifiedActionChanged(EventArgs e)

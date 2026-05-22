@@ -16,7 +16,7 @@
  */
 
 // #define DEBUG // Uncomment to enable Serial output for debugging
-// #define TEST // Uncomment to enable fast timers for testing
+#define TEST // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -119,7 +119,8 @@ const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - mot
 const unsigned long TANK_EXCEPTION_DELAY = 5UL * 1000UL;     // 5 seconds
 const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
 const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;          // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 20;                  // debounce time for sensors = 20 ms
+const unsigned long DEBOUNCE_DELAY_MS = 20UL;                // debounce time for sensors = 20 ms
+const unsigned long TRANSITION_DELAY = 5UL * 1000UL;         // Transition delay 5 seconds
 const uint8_t TANK_12 = 12;
 
 // Program variables
@@ -577,6 +578,7 @@ enum MainState : id_t
     S_VERIFYING = 0,
     S_UNKNOWN_DIRECTION_RECOVERY,
     S_MIDDLE_RECOVERY,
+    // S_READING_TANK_RECOVERY,
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
@@ -677,7 +679,7 @@ Transition transitions[] = {
 
     // S_TRANSITIONING: small delay between tanks, then either go to next tank's
     // logic or to START if finished
-    {transitioningPredicate, S_TRANSITIONING, S_LOWERING, nullptr, transitioningActionChanged},
+    {transitioningPredicate, S_LOWERING, S_LOWERING, nullptr, transitioningActionChanged, TRANSITION_DELAY, TRUE_TIMER},
 
     // S_LOWERING: run movement motor until bottom sensor active -> if bottom
     // sensor active -> DOWN else ERROR
@@ -1040,7 +1042,10 @@ void raisingActionChanged(EventArgs e)
 bool transitioningPredicate(id_t id)
 {
     syncTankID(false);
-    return tankChanged;
+    if (tankChanged)
+        return false;
+
+    return true;
 }
 
 void transitioningActionChanged(EventArgs e)

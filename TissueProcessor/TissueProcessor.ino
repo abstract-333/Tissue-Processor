@@ -578,7 +578,7 @@ enum MainState : id_t
     S_VERIFYING = 0,
     S_UNKNOWN_DIRECTION_RECOVERY,
     S_MIDDLE_RECOVERY,
-    // S_READING_TANK_RECOVERY,
+    S_READING_TANK_RECOVERY,
     S_IDLE,
     S_PRE_DOWN,
     S_DOWN,
@@ -599,6 +599,13 @@ void verifyingActionChanged(EventArgs e);
 bool middlePredicate(id_t id);
 void middleProcess(id_t id);
 void middleActionChanged(EventArgs e);
+
+bool unknownDirectionPredicate(id_t id);
+void unknownDirectionProcess(id_t id);
+
+void readingTankActionChanged(EventArgs e);
+bool readingTankPredicate(id_t id);
+void readingTankProcess(id_t id);
 
 bool idlePredicate(id_t id);
 void idleActionChanged(EventArgs e);
@@ -639,11 +646,15 @@ Transition transitions[] = {
 
     // S_UNKNOWN_DIRECTION_RECOVERY: if sample up -> go to S_UP
     //                              if not top and not down, so sample is on the middle position
-    {unknownDirectionPredicate, S_UP, S_MIDDLE_RECOVERY, nullptr, nullptr},
+    {unknownDirectionPredicate, S_UP, S_MIDDLE_RECOVERY, unknownDirectionProcess, nullptr},
 
     // S_MIDDLE_RECOVERY: if sample reached top -> S_UP
     //              otherwise S_PRE_DOWN
     {middlePredicate, S_MIDDLE_RECOVERY, S_UP, middleProcess, middleActionChanged},
+
+    // S_READING_TANK_RECOVERY: if tank changed -> move to lowering state
+    //              otherwise go to error state
+    {readingTankPredicate, S_ERROR, S_LOWERING, readingTankProcess, readingTankActionChanged, TRANSITION_DELAY, FALSE_TIMER},
 
     // S_IDLE: if paused stay in Idle. After pressing starting button -> Go down
     {idlePredicate, S_IDLE, S_PRE_DOWN, idleProcess, idleActionChanged},
@@ -699,7 +710,6 @@ bool verifyingPredicate(id_t id)
 {
     if (bottomLimit.isActive())
         return false;
-
     return true;
 }
 void verifyingProcess(id_t id)
@@ -715,21 +725,26 @@ void verifyingActionChanged(EventArgs e)
 
 bool unknownDirectionPredicate(id_t id)
 {
-    if (topLimit.isActive())
+    if (topLimit.isActive() && !tankException)
     {
         moveOn();
         return false;
     }
     return true;
 }
+void unknownDirectionProcess(id_t id)
+{
+    if (topLimit.isActive() && tankException)
+    {
+        fsm.begin(S_READING_TANK_RECOVERY);
+        return;
+    }
+}
 
 bool middlePredicate(id_t id)
 {
     if (topLimit.isActive())
-    {
-        moveOn();
         return true;
-    }
 
     return false;
 }
@@ -756,6 +771,34 @@ void middleActionChanged(EventArgs e)
         DBGLN("Exit Lowering");
         break;
     }
+}
+
+void readingTankActionChanged(EventArgs e)
+{
+    switch (e.action)
+    {
+    case ENTRY:
+        moveOn();
+
+        lcdShowStatusTank(F("Reading Tank...")); // Uses F() to keep text in Flash
+        break;
+
+    case EXIT:
+        break;
+    }
+}
+
+bool readingTankPredicate(id_t id)
+{
+    if (!topLimit.isActive() && !tankException)
+        return true;
+
+    return false;
+}
+
+void readingTankProcess(id_t id)
+{
+    syncTankID(false);
 }
 
 bool idlePredicate(id_t id)
@@ -1071,6 +1114,9 @@ void errorActionChanged(EventArgs e)
     {
         // KILL EVERYTHING
         outputsKill();
+        if (tankException)
+            lcdShowStatus(F("ERROR"), F("Tank read"));
+
         DBGLN("!!! SAFETY SHUTDOWN !!!");
     }
 }
@@ -1130,6 +1176,10 @@ void safetyTask()
     {
         lcdShowStatus(F("ERROR"), F("TOP or BOTTOM S"));
         fsm.begin(S_ERROR);
+        return;
+    }
+    if (tankException && topLimit.isActive() && (fsm.id == S_UNKNOWN_DIRECTION_RECOVERY || fsm.id == S_READING_TANK_RECOVERY || fsm.id == S_VERIFYING))
+    {
         return;
     }
 

@@ -263,9 +263,9 @@ const TankProfile tanks[13] PROGMEM =
         {120, HEATER_NONE, WAX_NONE, 4}, // Tank 7 = 2 hours (4 cycles)
         {150, HEATER_NONE, WAX_NONE, 5}, // Tank 8 = 2.5 hours (5 cycles)
         {120, HEATER_NONE, WAX_NONE, 4}, // Tank 9 = 2 hours (4 cycles)
-        {180, HEATER_1, WAX_NONE, 6},    // Tank 10: Heater 1, Wax Sensor 1, 3 hours (6 cycles)
-        {120, HEATER_BOTH, WAX_1, 4},    // Tank 11: Both Heaters, Wax Sensor 1, 2 hours (4 cycles)
-        {180, HEATER_2, WAX_2, 6}        // Tank 12: Heater 2, Wax Sensor 2, 3 hours (6 cycles)
+        {180, HEATER_1, WAX_NONE, 6},    // Tank 10 = Heater 1, Wax Sensor 1, 3 hours (6 cycles)
+        {120, HEATER_BOTH, WAX_1, 4},    // Tank 11 =  Both Heaters, Wax Sensor 1, 2 hours (4 cycles)
+        {180, HEATER_2, WAX_2, 6}        // Tank 12 = Heater 2, Wax Sensor 2, 3 hours (6 cycles)
 };
 
 // Accessors for PROGMEM table

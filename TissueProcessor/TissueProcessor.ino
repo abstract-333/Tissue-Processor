@@ -104,12 +104,12 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 #ifdef TEST
 const unsigned long ONE_MIN_MS = 1000UL;          // 1 second = 1 "minute" for testing
-const unsigned long MIN_DWELL_MIN = 10UL;         // allow 10 seconds in test
-const unsigned long TANK_TIME_MS = 10UL * 1000UL; // stays down for 10 seconds while vibrating
+const unsigned long MIN_DWELL_MIN = 2UL;          // allow 10 seconds in test
+const unsigned long CYCLE_TIME_MS = 2UL * 1000UL; // stays down for 10 seconds while vibrating
 #else
-const unsigned long ONE_MIN_MS = 60UL * 1000UL;          // 1 real minute
-const unsigned long MIN_DWELL_MIN = 60UL;                // production min dwell in minutes
-const unsigned long TANK_TIME_MS = 60UL * 60UL * 1000UL; // Normaly stays down for 1 hour while vibrating
+const unsigned long ONE_MIN_MS = 60UL * 1000UL;           // 1 real minute
+const unsigned long MIN_DWELL_MIN = 30UL;                 // production min dwell in minutes
+const unsigned long CYCLE_TIME_MS = 30UL * 60UL * 1000UL; // One cycle = 30 minutes
 
 #endif
 
@@ -248,25 +248,25 @@ struct TankProfile
     uint8_t dwellMinutes;
     HeaterRequirement requiredHeater; // 0: None, 1: Heater1, 2: Heater2, 3: Both
     WaxRequirement requiredWax;       // 0: None, 1: Wax1, 2: Wax2, 3: Both
-    uint8_t cycles;                   // 1: Normal, 2: Double dwell (for tanks 11, 12)
+    uint8_t cycles;
 } __attribute__((packed));
 
 // Now define your 12 tanks in one clean table
 const TankProfile tanks[13] PROGMEM =
     {
-        {0, HEATER_NONE, WAX_NONE, 1},  // Tank 0 (unused)
-        {60, HEATER_NONE, WAX_NONE, 1}, // Tanks 1-9: No heat, no wax sensor, 1 cycle
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_NONE, WAX_NONE, 1},
-        {60, HEATER_1, WAX_NONE, 1},  // Tank 10: Heater 1, Wax Sensor 1, 1 cycle
-        {120, HEATER_BOTH, WAX_1, 2}, // Tank 11: Both Heaters, Wax Sensor 1, 2 cycles
-        {120, HEATER_2, WAX_2, 2}     // Tank 12: Both Heaters, Both Sensors, 2 cycles
+        {0, HEATER_NONE, WAX_NONE, 1},   // Tank 0 (unused)
+        {60, HEATER_NONE, WAX_NONE, 2},  // Tank 1 = 1 hour (2 cycles)
+        {90, HEATER_NONE, WAX_NONE, 3},  // Tank 2 = 1.5 hour (3 cycles)
+        {90, HEATER_NONE, WAX_NONE, 3},  // Tank 3 = 1.5 hour (3 cycles)
+        {120, HEATER_NONE, WAX_NONE, 4}, // Tank 4 = 2 hours (4 cycles)
+        {120, HEATER_NONE, WAX_NONE, 4}, // Tank 5 = 2 hours (4 cycles)
+        {90, HEATER_NONE, WAX_NONE, 3},  // Tank 6 = 1.5 hour (3 cycles)
+        {120, HEATER_NONE, WAX_NONE, 4}, // Tank 7 = 2 hours (4 cycles)
+        {150, HEATER_NONE, WAX_NONE, 5}, // Tank 8 = 2.5 hours (5 cycles)
+        {120, HEATER_NONE, WAX_NONE, 4}, // Tank 9 = 2 hours (4 cycles)
+        {180, HEATER_1, WAX_NONE, 6},    // Tank 10: Heater 1, Wax Sensor 1, 3 hours (6 cycles)
+        {120, HEATER_BOTH, WAX_1, 2},    // Tank 11: Both Heaters, Wax Sensor 1, 2 hours (4 cycles)
+        {180, HEATER_2, WAX_2, 2}        // Tank 12: Heater 2, Wax Sensor 2, 3 hours (6 cycles)
 };
 
 // Accessors for PROGMEM table
@@ -669,7 +669,7 @@ Transition transitions[] = {
             Tank 11 -> Start second heater.
             Tank 12 -> If finished then stop vibrating.
             */
-    {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, TANK_TIME_MS, TRUE_TIMER},
+    {downPredicate, S_PRE_RAISING, S_CHECKING, downProcess, downActionChanged, CYCLE_TIME_MS, TRUE_TIMER},
 
     /*S_CHECKING: Tank 1..10 -> continue to raise state
             Tank 11 + 12 -> Two hours instead of 1 hour, so renter the downstate.

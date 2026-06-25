@@ -16,7 +16,7 @@
  */
 
 // #define DEBUG // Uncomment to enable Serial output for debugging
-#define TEST // Uncomment to enable fast timers for testing
+// #define TEST // Uncomment to enable fast timers for testing
 
 // ===================== DEBUG MACROS =====================
 #ifdef DEBUG
@@ -118,8 +118,7 @@ const unsigned long VERIFICATION_DELAY_MS = 10UL * 1000UL;   // 10 seconds
 const unsigned long MOVE_TIMEOUT_MS = 80UL * 1000UL;         // 80 seconds - motion safety timeout
 const unsigned long TANK_EXCEPTION_DELAY = 5UL * 1000UL;     // 5 seconds
 const unsigned long TANK_STABILITY_THRESHOLD = 3UL * 1000UL; // 3 seconds
-const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;          // Idle state - 2 seconds
-const unsigned long DEBOUNCE_DELAY_MS = 20UL;                // debounce time for sensors = 20 ms
+const unsigned long BUTTON_DELAY_MS = 3UL * 1000UL;          // Button response time
 const unsigned long TRANSITION_DELAY = 5UL * 1000UL;         // Transition delay 5 seconds
 const uint8_t TANK_12 = 12;
 

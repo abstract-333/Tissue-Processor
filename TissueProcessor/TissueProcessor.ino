@@ -1033,6 +1033,7 @@ bool upPredicate(id_t id)
     {
         inspection = false;
         raiseButton.reset();
+        moveOn();
         return false;
     }
     return false;

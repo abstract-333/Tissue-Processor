@@ -511,7 +511,7 @@ void lcdShowStatusTank(const __FlashStringHelper *text)
     lcdPrintPadded(text);
 }
 
-void formatTime(char *buf, uint8_t h, uint8_t m, uint8_t s)
+void formatTime(char *buf, uint8_t h, uint8_t m)
 {
     // Logic: '0' + (digit) converts a number to its ASCII character
     memcpy(buf, "Time: ", 6);
@@ -520,11 +520,11 @@ void formatTime(char *buf, uint8_t h, uint8_t m, uint8_t s)
     buf[8] = ':';
     buf[9] = '0' + (m / 10);
     buf[10] = '0' + (m % 10);
-    buf[11] = ':';
-    buf[12] = '0' + (s / 10);
-    buf[13] = '0' + (s % 10);
 
     // Fill the rest of the 16-char LCD line
+    buf[11] = ' ';
+    buf[12] = ' ';
+    buf[13] = ' ';
     buf[14] = ' ';
     buf[15] = ' ';
     buf[16] = '\0'; // Null terminator
@@ -553,9 +553,18 @@ void printRemainingTimeForTank(uint8_t tank)
 
     // 4. Conversion
     unsigned long remainingTotalMins = remainingMs / ONE_MIN_MS;
-    unsigned int dispalySeconds = (remainingMs / 1000UL) % 60;
+    unsigned int remainingSeconds = (remainingMs / 1000UL) % 60;
     unsigned int hours = remainingTotalMins / 60;
     unsigned int displayMins = remainingTotalMins % 60;
+    // This code will show minus one minute, because micro second will be substracted on operations.
+    // That's why, we should add extra minute if remainingSeconds are greater than 0
+    // Example:                   Hours  :Minutes :Seconds
+    //           First Iteration:  01    :30      :00.00
+    //           Second Iteration: 01    :28      :59.99
+    // Improved- First Iteration:  01    :30
+    // Improved- Second Iteration: 01    :29
+    if (remainingSeconds > 0)
+        displayMins++;
 
     // 5. LCD Update
     lcd.setCursor(0, 0);
@@ -564,7 +573,7 @@ void printRemainingTimeForTank(uint8_t tank)
     // 5. LCD Update (Optimized)
     char timeBuffer[17];
     // Format: "Tank: 12  01:30:05"
-    formatTime(timeBuffer, hours, displayMins, dispalySeconds);
+    formatTime(timeBuffer, hours, displayMins);
 
     lcd.setCursor(0, 1);
     lcd.print(timeBuffer);

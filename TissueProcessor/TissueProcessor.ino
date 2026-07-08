@@ -1043,6 +1043,7 @@ bool upPredicate(id_t id)
         inspection = false;
         raiseButton.reset();
         moveOn();
+        lcdShowStatusTank(F("Reached Top"));
         return false;
     }
     return false;

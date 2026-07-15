@@ -245,10 +245,18 @@ struct TankProfile
 
 | Tank | Duration | Heaters  | Wax Check | Cycles |
 | ---- | -------- | -------- | --------- | ------ |
-| 1–9  | 60 min   | None     | None      | 1      |
-| 10   | 60 min   | Heater 1 | None      | 1      |
-| 11   | 120 min  | Both     | Wax 1     | 2      |
-| 12   | 120 min  | Both     | Wax 1 + 2 | 2      |
+| 1    | 60 min   | None     | None      | 2      |
+| 2    | 90 min   | None     | None      | 3      |
+| 3    | 90 min   | None     | None      | 3      |
+| 4    | 120 min  | None     | None      | 4      |
+| 5    | 120 min  | None     | None      | 4      |
+| 6    | 90 min   | None     | None      | 3      |
+| 7    | 120 min  | None     | None      | 4      |
+| 8    | 150 min  | None     | None      | 5      |
+| 9    | 120 min  | None     | None      | 4      |
+| 10   | 180 min  | Heater 1 | None      | 6      |
+| 11   | 120 min  | Both     | Wax 1     | 4      |
+| 12   | 180 min  | Heater 2 | Wax 1     | 6      |
 
 ---
 

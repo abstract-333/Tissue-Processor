@@ -526,7 +526,7 @@ Before use in a real laboratory or medical environment:
 
 # 📄 License
 
-Licensed under the MIT License.
+Licensed under the GPL License.
 
 Copyright © 2026 Basher Hasan (`abstract-333`)
 
